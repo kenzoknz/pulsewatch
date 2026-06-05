@@ -1,5 +1,6 @@
 using Microsoft.OpenApi;
-
+using Microsoft.EntityFrameworkCore;
+using PulseWatch.Api.Data;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
@@ -13,6 +14,8 @@ builder.Services.AddSwaggerGen(options =>
         Description = "API documentation for PulseWatch project"
     });
 });
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
 
