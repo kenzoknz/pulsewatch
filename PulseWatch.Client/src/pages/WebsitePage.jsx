@@ -5,6 +5,7 @@ import {
   createWebsite,
   updateWebsite,
   deleteWebsite,
+  runWebsiteCheck,
 } from '../api/pulsewatchApi';
 import WebsiteTable from '../components/WebsiteTable';
 import WebsiteForm from '../components/WebsiteForm';
@@ -20,6 +21,7 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
   const [showForm, setShowForm] = useState(false);
   const [editingWebsite, setEditingWebsite] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkingWebsiteId, setCheckingWebsiteId] = useState(null);
 
   useEffect(() => {
     fetchWebsites();
@@ -92,6 +94,19 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
       onRefresh();
     } catch (err) {
       alert('Failed to delete website. Please try again.');
+    }
+  };
+
+  const handleRunCheck = async (websiteId) => {
+    try {
+      setCheckingWebsiteId(websiteId);
+      await runWebsiteCheck(websiteId);
+      await fetchWebsites();
+      onRefresh();
+    } catch (err) {
+      alert('Failed to run uptime check. Please try again.');
+    } finally {
+      setCheckingWebsiteId(null);
     }
   };
 
@@ -195,6 +210,8 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
         onView={onViewDetail}
         onEdit={handleEditClick}
         onDelete={handleDelete}
+        onRunCheck={handleRunCheck}
+        checkingWebsiteId={checkingWebsiteId}
       />
     </div>
   );

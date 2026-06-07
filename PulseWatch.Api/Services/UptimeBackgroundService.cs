@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using PulseWatch.Api.Data;
 using PulseWatch.Api.Models;
 
@@ -8,20 +9,35 @@ public class UptimeBackgroundService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopefactory;
     private readonly ILogger<UptimeBackgroundService> _logger;
+    private readonly UptimeMonitoringOptions _options;
 
-    public UptimeBackgroundService(IServiceScopeFactory scopefactory, ILogger<UptimeBackgroundService> logger)
+    public UptimeBackgroundService(
+        IServiceScopeFactory scopefactory,
+        ILogger<UptimeBackgroundService> logger,
+        IOptions<UptimeMonitoringOptions> options)
     {
         _scopefactory = scopefactory;
         _logger = logger;
+        _options = options.Value;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("PulseWatch background service started.");
+        _logger.LogInformation(
+            "PulseWatch background service started. SchedulerDelaySeconds={SchedulerDelaySeconds}, RetentionDays={RetentionDays}",
+            _options.SchedulerDelaySeconds,
+            _options.RetentionDays
+        );
         DateTime lastCleanupDate = DateTime.MinValue;
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var loopStartedAt = DateTime.UtcNow;
+            var checkedCount = 0;
+            var onlineCount = 0;
+            var offlineCount = 0;
+            var totalResponseTimeMs = 0L;
+
             using var scope = _scopefactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var checker = scope.ServiceProvider.GetRequiredService<UptimeCheckerService>();
@@ -70,6 +86,18 @@ public class UptimeBackgroundService : BackgroundService
 
                         context.UptimeChecks.Add(check);
 
+                        checkedCount++;
+                        if (check.IsOnline)
+                        {
+                            onlineCount++;
+                        }
+                        else
+                        {
+                            offlineCount++;
+                        }
+
+                        totalResponseTimeMs += check.ResponseTimeMs;
+
                         _logger.LogInformation(
                             "Checked {Url}: {Status} | StatusCode: {StatusCode} | ResponseTime: {ResponseTime}ms",
                             website.Url, check.IsOnline ? "Online" : "Offline", check.StatusCode, check.ResponseTimeMs
@@ -89,7 +117,7 @@ public class UptimeBackgroundService : BackgroundService
             {
                 try
                 {
-                    var cutoffDate = DateTime.UtcNow.AddDays(-90);
+                    var cutoffDate = DateTime.UtcNow.AddDays(-_options.RetentionDays);
 
                     int deletedRows = await context.UptimeChecks
                         .Where(c => c.CheckedAt < cutoffDate)
@@ -123,7 +151,24 @@ public class UptimeBackgroundService : BackgroundService
                 }
             }
 
-            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+            if (checkedCount > 0)
+            {
+                var elapsedMs = (DateTime.UtcNow - loopStartedAt).TotalMilliseconds;
+                var averageResponseTimeMs = totalResponseTimeMs / checkedCount;
+                var failureRate = checkedCount == 0 ? 0 : (double)offlineCount / checkedCount;
+
+                _logger.LogInformation(
+                    "[UptimeMetrics] Checked={CheckedCount}, Online={OnlineCount}, Offline={OfflineCount}, AverageResponseTimeMs={AverageResponseTimeMs}, FailureRate={FailureRate:P2}, LoopElapsedMs={LoopElapsedMs}",
+                    checkedCount,
+                    onlineCount,
+                    offlineCount,
+                    averageResponseTimeMs,
+                    failureRate,
+                    elapsedMs
+                );
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(_options.SchedulerDelaySeconds), stoppingToken);
         }
     }
 }

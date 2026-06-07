@@ -30,18 +30,41 @@ const formatDate = (dateString) => {
   }
 };
 
+const DEFAULT_PAGE_SIZE = 20;
+
 export default function WebsiteDetailPage({ websiteId, onBack }) {
   const [website, setWebsite] = useState(null);
   const [stats, setStats] = useState(null);
-  const [checks, setChecks] = useState([]);
+  const [checksPage, setChecksPage] = useState(1);
+  const [checksPageSize, setChecksPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [checksPaged, setChecksPaged] = useState(null);
   const [downtimeEvents, setDowntimeEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [checksLoading, setChecksLoading] = useState(false);
   const [error, setError] = useState(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
 
   useEffect(() => {
     fetchAllData();
   }, [websiteId]);
+
+  useEffect(() => {
+    if (!loading) {
+      fetchChecksPage();
+    }
+  }, [checksPage, checksPageSize]);
+
+  const fetchChecksPage = async () => {
+    try {
+      setChecksLoading(true);
+      const checksRes = await getWebsiteChecks(websiteId, checksPage, checksPageSize);
+      setChecksPaged(checksRes.data);
+    } catch {
+      // silently fail for pagination
+    } finally {
+      setChecksLoading(false);
+    }
+  };
 
   const fetchAllData = async () => {
     try {
@@ -51,13 +74,13 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
       const [websiteRes, statsRes, checksRes, eventsRes] = await Promise.all([
         getWebsite(websiteId),
         getWebsiteStats(websiteId),
-        getWebsiteChecks(websiteId),
+        getWebsiteChecks(websiteId, 1, DEFAULT_PAGE_SIZE),
         getDowntimeEvents(websiteId),
       ]);
 
       setWebsite(websiteRes.data);
       setStats(statsRes.data);
-      setChecks(checksRes.data || []);
+      setChecksPaged(checksRes.data);
       setDowntimeEvents(eventsRes.data || []);
     } catch (err) {
       setError('Failed to load website details. Please try again.');
@@ -217,10 +240,49 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
         <h3 className="section-title">
           Check History
           <span className="text-muted" style={{ fontSize: '12px', marginLeft: 'auto', fontWeight: 'normal' }}>
-            Latest {checks.length} checks
+            {checksPaged?.totalItems ?? 0} total checks
           </span>
         </h3>
-        <CheckHistoryTable checks={checks} />
+
+        <CheckHistoryTable checks={checksPaged?.items || []} />
+
+        {checksPaged && checksPaged.totalPages > 1 && (
+          <div className="pagination-controls">
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={!checksPaged.hasPreviousPage || checksLoading}
+              onClick={() => setChecksPage(p => Math.max(1, p - 1))}
+            >
+              ← Previous
+            </button>
+
+            <div className="pagination-info">
+              <span>
+                Page {checksPaged.page} of {checksPaged.totalPages}
+              </span>
+              <select
+                className="page-size-select"
+                value={checksPageSize}
+                onChange={(e) => {
+                  setChecksPageSize(Number(e.target.value));
+                  setChecksPage(1);
+                }}
+              >
+                <option value={10}>10 / page</option>
+                <option value={20}>20 / page</option>
+                <option value={50}>50 / page</option>
+              </select>
+            </div>
+
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={!checksPaged.hasNextPage || checksLoading}
+              onClick={() => setChecksPage(p => p + 1)}
+            >
+              Next →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Downtime Events Section */}

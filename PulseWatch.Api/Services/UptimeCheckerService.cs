@@ -5,10 +5,12 @@ namespace PulseWatch.Api.Services;
 public class UptimeCheckerService
 {
     private readonly HttpClient _httpClient;
-    public UptimeCheckerService(HttpClient httpClient)
+    private readonly ILogger<UptimeCheckerService> _logger;
+
+    public UptimeCheckerService(HttpClient httpClient, ILogger<UptimeCheckerService> logger)
     {
         _httpClient = httpClient;
-        _httpClient.Timeout = TimeSpan.FromSeconds(10); // Set a timeout for the HTTP requests
+        _logger = logger;
     }
 
     public async Task<UptimeCheck> CheckWebsiteAsync(Website website)
@@ -34,13 +36,24 @@ public class UptimeCheckerService
             stopwatch.Stop();
         }
 
-        // logic
+        var responseTimeMs = stopwatch.ElapsedMilliseconds;
+
+        _logger.LogInformation(
+            "[UptimeCheck] WebsiteId={WebsiteId}, Url={Url}, IsOnline={IsOnline}, StatusCode={StatusCode}, ResponseTimeMs={ResponseTimeMs}, Error={ErrorMessage}",
+            website.Id,
+            website.Url,
+            isOnline,
+            statusCode,
+            responseTimeMs,
+            errorMessage
+        );
+
         return new UptimeCheck
         {
             WebsiteId = website.Id,
             IsOnline = isOnline,
             StatusCode = statusCode,
-            ResponseTimeMs = stopwatch.ElapsedMilliseconds,
+            ResponseTimeMs = responseTimeMs,
             ErrorMessage = errorMessage,
             CheckedAt = DateTime.UtcNow
         };

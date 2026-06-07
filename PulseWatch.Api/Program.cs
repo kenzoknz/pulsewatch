@@ -18,7 +18,16 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddControllers();
-builder.Services.AddHttpClient<UptimeCheckerService>();
+builder.Services.Configure<UptimeMonitoringOptions>(
+    builder.Configuration.GetSection(UptimeMonitoringOptions.SectionName));
+builder.Services.AddHttpClient<UptimeCheckerService>((serviceProvider, httpClient) =>
+{
+    var options = serviceProvider
+        .GetRequiredService<Microsoft.Extensions.Options.IOptions<UptimeMonitoringOptions>>()
+        .Value;
+
+    httpClient.Timeout = TimeSpan.FromSeconds(options.HttpTimeoutSeconds);
+});
 builder.Services.AddHostedService<UptimeBackgroundService>();
 builder.Services.AddCors(options =>
 {

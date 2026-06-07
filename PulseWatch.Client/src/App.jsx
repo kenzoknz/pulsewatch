@@ -2,6 +2,7 @@ import './App.css';
 import DashboardPage from './pages/DashboardPage';
 import WebsitePage from './pages/WebsitePage';
 import WebsiteDetailPage from './pages/WebsiteDetailPage';
+import BulkAddWebsitesPage from './pages/BulkAddWebsitesPage';
 import {
   RiDashboardLine,
   RiGlobalLine,
@@ -48,10 +49,10 @@ function App() {
 
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', Icon: RiDashboardLine },
-    { to: '/websites', label: 'Websites', Icon: RiGlobalLine },
   ];
 
-  const isDetailView = /^\/websites\/[^/]+/.test(location.pathname);
+  const isBulkAddView = location.pathname === '/websites/bulk-add';
+  const isDetailView = /^\/websites\/[^/]+/.test(location.pathname) && !isBulkAddView;
 
   return (
     <div className="app-shell">
@@ -74,6 +75,26 @@ function App() {
                 <span>{item.label}</span>
               </NavLink>
             ))}
+
+            <div className="nav-group">
+              <div className="nav-group-title">
+                <span className="nav-icon"><RiGlobalLine size={18} /></span>
+                <span>Websites</span>
+              </div>
+              <NavLink
+                to="/websites/bulk-add"
+                className={({ isActive }) => `nav-item nav-subitem ${isActive ? 'active' : ''}`}
+              >
+                <span>Bulk Add</span>
+              </NavLink>
+              <NavLink
+                to="/websites"
+                className={({ isActive }) => `nav-item nav-subitem ${isActive ? 'active' : ''}`}
+                end
+              >
+                <span>Manage Websites</span>
+              </NavLink>
+            </div>
           </nav>
         </aside>
 
@@ -100,8 +121,14 @@ function App() {
                 )}
                 {location.pathname === '/websites' && (
                   <>
-                    <h2>Websites</h2>
+                    <h2>Manage Websites</h2>
                     <span className="topbar-subtitle">Manage monitored endpoints</span>
+                  </>
+                )}
+                {isBulkAddView && (
+                  <>
+                    <h2>Bulk Add Websites</h2>
+                    <span className="topbar-subtitle">Add multiple monitored endpoints at once</span>
                   </>
                 )}
                 {isDetailView && (
@@ -152,6 +179,14 @@ function App() {
                       key={refreshKey}
                       onViewDetail={handleViewDetail}
                       onRefresh={triggerRefresh}
+                    />
+                  )}
+                />
+                <Route
+                  path="/websites/bulk-add"
+                  element={(
+                    <BulkAddWebsitesPage
+                      onCompleted={triggerRefresh}
                     />
                   )}
                 />

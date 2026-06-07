@@ -1,5 +1,5 @@
 import React from 'react';
-import { RiEyeLine, RiEditLine, RiDeleteBinLine, RiGlobalLine } from 'react-icons/ri';
+import { RiEyeLine, RiEditLine, RiDeleteBinLine, RiGlobalLine, RiPulseLine } from 'react-icons/ri';
 
 const formatDate = (dateString) => {
   if (!dateString) return '—';
@@ -17,7 +17,7 @@ const formatDate = (dateString) => {
   }
 };
 
-export default function WebsiteTable({ websites, onView, onEdit, onDelete }) {
+export default function WebsiteTable({ websites, onView, onEdit, onDelete, onRunCheck, checkingWebsiteId }) {
   if (!websites || websites.length === 0) {
     return (
       <div className="empty-state">
@@ -76,6 +76,14 @@ export default function WebsiteTable({ websites, onView, onEdit, onDelete }) {
                     title="View details"
                   >
                     <RiEyeLine size={16} />
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => onRunCheck(site.id)}
+                    disabled={checkingWebsiteId === site.id}
+                    title="Run uptime check now"
+                  >
+                    <RiPulseLine size={16} className={checkingWebsiteId === site.id ? 'icon-spin' : ''} />
                   </button>
                   <button
                     className="btn btn-ghost btn-sm"
