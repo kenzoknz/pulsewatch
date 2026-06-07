@@ -14,95 +14,116 @@ public class UptimeBackgroundService : BackgroundService
         _scopefactory = scopefactory;
         _logger = logger;
     }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-{
-    _logger.LogInformation("PulseWatch background service started.");
-    DateTime lastCleanupDate = DateTime.MinValue;
-
-    while (!stoppingToken.IsCancellationRequested)
     {
-        using var scope = _scopefactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var checker = scope.ServiceProvider.GetRequiredService<UptimeCheckerService>();
+        _logger.LogInformation("PulseWatch background service started.");
+        DateTime lastCleanupDate = DateTime.MinValue;
 
-        var websites = await context.Websites
-                        .Where(w => w.IsActive)
-                        .ToListAsync(stoppingToken);
-
-        // VÒNG LẶP FOREACH: CHỈ LÀM NHIỆM VỤ PING VÀ ADD VÀO CONTEXT
-        foreach (var website in websites)
+        while (!stoppingToken.IsCancellationRequested)
         {
-            try
+            using var scope = _scopefactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var checker = scope.ServiceProvider.GetRequiredService<UptimeCheckerService>();
+
+            var websites = await context.Websites
+                                        .Where(w => w.IsActive)
+                                        .ToListAsync(stoppingToken);
+
+            if (websites.Any())
             {
-                var check = await checker.CheckWebsiteAsync(website);
-                
-                var lastCheck = await context.UptimeChecks
-                                    .Where(c => c.WebsiteId == website.Id)
-                                    .OrderByDescending(c => c.CheckedAt)
-                                    .FirstOrDefaultAsync(stoppingToken);
+                var websiteIds = websites.Select(w => w.Id).ToList();
 
-                var openDowntime = await context.DowntimeEvents
-                                    .Where(d => d.WebsiteId == website.Id && d.EndedAt == null)
-                                    .FirstOrDefaultAsync(stoppingToken);
+                var openDowntimes = await context.DowntimeEvents
+                    .Where(d => websiteIds.Contains(d.WebsiteId) && d.EndedAt == null)
+                    .ToDictionaryAsync(d => d.WebsiteId, stoppingToken);
 
-                if (lastCheck != null && lastCheck.IsOnline && !check.IsOnline)
+                var lastChecks = await context.UptimeChecks
+                    .Where(c => websiteIds.Contains(c.WebsiteId))
+                    .GroupBy(c => c.WebsiteId)
+                    .Select(g => g.OrderByDescending(c => c.CheckedAt).FirstOrDefault())
+                    .ToDictionaryAsync(c => c!.WebsiteId, stoppingToken);
+
+                foreach (var website in websites)
                 {
-                    context.DowntimeEvents.Add(new DowntimeEvent
+                    try
                     {
-                        WebsiteId = website.Id,
-                        StartedAt = check.CheckedAt,
-                        Reason = check.ErrorMessage ?? $"Status code: {check.StatusCode}"
-                    });
+                        var check = await checker.CheckWebsiteAsync(website);
+
+                        lastChecks.TryGetValue(website.Id, out var lastCheck);
+                        openDowntimes.TryGetValue(website.Id, out var openDowntime);
+
+                        if ((lastCheck == null || lastCheck.IsOnline) && !check.IsOnline)
+                        {
+                            context.DowntimeEvents.Add(new DowntimeEvent
+                            {
+                                WebsiteId = website.Id,
+                                StartedAt = check.CheckedAt,
+                                Reason = check.ErrorMessage ?? $"Status code: {check.StatusCode}"
+                            });
+                        }
+
+                        if (openDowntime != null && check.IsOnline)
+                        {
+                            openDowntime.EndedAt = check.CheckedAt;
+                        }
+
+                        context.UptimeChecks.Add(check);
+
+                        _logger.LogInformation(
+                            "Checked {Url}: {Status} | StatusCode: {StatusCode} | ResponseTime: {ResponseTime}ms",
+                            website.Url, check.IsOnline ? "Online" : "Offline", check.StatusCode, check.ResponseTimeMs
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error checking website {WebsiteId}", website.Id);
+                    }
                 }
 
-                if (openDowntime != null && check.IsOnline)
+                await context.SaveChangesAsync(stoppingToken);
+            }
+
+            // Xử lý dọn dẹp dữ liệu cũ (Retention policy) duy trì một lần mỗi ngày
+            if (DateTime.UtcNow.Date > lastCleanupDate.Date)
+            {
+                try
                 {
-                    openDowntime.EndedAt = check.CheckedAt;
+                    var cutoffDate = DateTime.UtcNow.AddDays(-90);
+
+                    int deletedRows = await context.UptimeChecks
+                        .Where(c => c.CheckedAt < cutoffDate)
+                        .ExecuteDeleteAsync(stoppingToken);
+
+                    if (deletedRows > 0)
+                    {
+                        _logger.LogInformation(
+                            "[Retention] Deleted {Count} old UptimeCheck records older than {CutoffDate}",
+                            deletedRows, cutoffDate.ToString("yyyy-MM-dd")
+                        );
+                    }
+
+                    int deletedEvents = await context.DowntimeEvents
+                        .Where(e => e.EndedAt != null && e.EndedAt < cutoffDate)
+                        .ExecuteDeleteAsync(stoppingToken);
+
+                    if (deletedEvents > 0)
+                    {
+                        _logger.LogInformation(
+                            "[Retention] Deleted {Count} old DowntimeEvent records",
+                            deletedEvents
+                        );
+                    }
+                  
+                    lastCleanupDate = DateTime.UtcNow;
                 }
-
-                context.UptimeChecks.Add(check);
-                
-                _logger.LogInformation(
-                    "Checked {Url}: {Status} | StatusCode: {StatusCode} | ResponseTime: {ResponseTime}ms",
-                    website.Url, check.IsOnline ? "Online" : "Offline", check.StatusCode, check.ResponseTimeMs
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error checking website {WebsiteId}", website.Id);
-            }
-        } 
-        {
-            await context.SaveChangesAsync(stoppingToken);
-        }
-
-        if (DateTime.UtcNow.Date > lastCleanupDate.Date)
-        {
-            try
-            {
-                var cutoffDate = DateTime.UtcNow.AddDays(-90);
-                int deletedRows = await context.UptimeChecks
-                    .Where(c => c.CheckedAt < cutoffDate)
-                    .ExecuteDeleteAsync(stoppingToken);
-
-                if (deletedRows > 0)
+                catch (Exception ex)
                 {
-                    _logger.LogInformation(
-                        "[Retention] Deleted {Count} old UptimeCheck records older than {CutoffDate}",
-                        deletedRows, cutoffDate.ToString("yyyy-MM-dd")
-                    );
+                    _logger.LogError(ex, "Error running retention data cleanup policy.");
                 }
+            }
 
-                lastCleanupDate = DateTime.UtcNow;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error running retention data cleanup policy.");
-            }
+            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
         }
-
-        // TỐI ƯU 3: Quét xong toàn bộ danh sách rồi mới nghỉ ngơi 5 phút
-        await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
     }
-}
 }
