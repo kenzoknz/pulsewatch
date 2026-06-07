@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   getWebsites,
@@ -6,10 +6,23 @@ import {
   updateWebsite,
   deleteWebsite,
   runWebsiteCheck,
+  bulkCheckWebsites,
+  bulkDeleteWebsites,
+  checkAllWebsites,
+  deleteAllWebsites,
 } from '../api/pulsewatchApi';
 import WebsiteTable from '../components/WebsiteTable';
 import WebsiteForm from '../components/WebsiteForm';
-import { RiSearchLine, RiAddLine, RiAlertLine, RiRefreshLine } from 'react-icons/ri';
+import {
+  RiSearchLine,
+  RiAddLine,
+  RiAlertLine,
+  RiRefreshLine,
+  RiDeleteBinLine,
+  RiPulseLine,
+  RiCheckboxCircleLine,
+  RiCloseLine,
+} from 'react-icons/ri';
 
 export default function WebsitePage({ onViewDetail, onRefresh }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,36 +36,64 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkingWebsiteId, setCheckingWebsiteId] = useState(null);
 
-  useEffect(() => {
-    fetchWebsites();
-  }, []);
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
-  useEffect(() => {
-    const nextParams = {};
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState([]);
 
-    if (searchTerm.trim()) {
-      nextParams.q = searchTerm.trim();
-    }
+  // Bulk action state
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [bulkActionMessage, setBulkActionMessage] = useState(null);
 
-    if (filterStatus !== 'all') {
-      nextParams.status = filterStatus;
-    }
-
-    setSearchParams(nextParams, { replace: true });
-  }, [searchTerm, filterStatus, setSearchParams]);
-
-  const fetchWebsites = async () => {
+  const fetchWebsites = useCallback(async (currentPage, currentPageSize, search) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await getWebsites();
-      setWebsites(response.data || []);
+      const params = { page: currentPage, pageSize: currentPageSize };
+      if (search && search.trim()) {
+        params.search = search.trim();
+      }
+      const response = await getWebsites(params);
+      const data = response.data;
+      setWebsites(data.items || []);
+      setTotalItems(data.totalItems || 0);
+      setTotalPages(data.totalPages || 0);
+      setPage(data.page || 1);
     } catch (err) {
       setError('Failed to load websites. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchWebsites(page, pageSize, searchTerm);
+  }, [page, pageSize]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchWebsites(1, pageSize, searchTerm);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const nextParams = {};
+    if (searchTerm.trim()) nextParams.q = searchTerm.trim();
+    if (filterStatus !== 'all') nextParams.status = filterStatus;
+    setSearchParams(nextParams, { replace: true });
+  }, [searchTerm, filterStatus, setSearchParams]);
+
+  // Clear selection when page data changes
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [websites]);
 
   const handleAddClick = () => {
     setEditingWebsite(null);
@@ -78,7 +119,7 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
         await createWebsite(formData);
       }
       handleFormCancel();
-      fetchWebsites();
+      fetchWebsites(page, pageSize, searchTerm);
       onRefresh();
     } catch (err) {
       alert('Failed to save website. Please try again.');
@@ -90,7 +131,12 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
   const handleDelete = async (websiteId) => {
     try {
       await deleteWebsite(websiteId);
-      fetchWebsites();
+      // If this was the last item on the page and we're not on page 1, go back a page
+      if (websites.length === 1 && page > 1) {
+        setPage(page - 1);
+      } else {
+        fetchWebsites(page, pageSize, searchTerm);
+      }
       onRefresh();
     } catch (err) {
       alert('Failed to delete website. Please try again.');
@@ -101,7 +147,7 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
     try {
       setCheckingWebsiteId(websiteId);
       await runWebsiteCheck(websiteId);
-      await fetchWebsites();
+      await fetchWebsites(page, pageSize, searchTerm);
       onRefresh();
     } catch (err) {
       alert('Failed to run uptime check. Please try again.');
@@ -110,19 +156,125 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
     }
   };
 
-  // Filter and search logic
+  // Selection handlers
+  const handleToggleSelect = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedIds(websites.map(s => s.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  // Bulk actions
+  const handleBulkCheck = async () => {
+    if (selectedIds.length === 0) return;
+    try {
+      setBulkActionLoading(true);
+      setBulkActionMessage(null);
+      const res = await bulkCheckWebsites(selectedIds);
+      const data = res.data;
+      setBulkActionMessage({
+        type: 'success',
+        text: `Checked ${data.success} successfully, ${data.failed} failed${data.skipped ? `, ${data.skipped} skipped` : ''}.`,
+      });
+      setSelectedIds([]);
+      await fetchWebsites(page, pageSize, searchTerm);
+      onRefresh();
+    } catch (err) {
+      setBulkActionMessage({ type: 'error', text: 'Failed to check selected websites.' });
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Delete ${selectedIds.length} selected website(s)? This cannot be undone.`)) return;
+    try {
+      setBulkActionLoading(true);
+      setBulkActionMessage(null);
+      await bulkDeleteWebsites(selectedIds);
+      setBulkActionMessage({ type: 'success', text: `Deleted ${selectedIds.length} website(s).` });
+      setSelectedIds([]);
+      // Adjust page if needed
+      const remainingOnPage = totalItems - selectedIds.length;
+      const newTotalPages = Math.ceil(remainingOnPage / pageSize) || 1;
+      if (page > newTotalPages) {
+        setPage(newTotalPages);
+      } else {
+        fetchWebsites(page, pageSize, searchTerm);
+      }
+      onRefresh();
+    } catch (err) {
+      setBulkActionMessage({ type: 'error', text: 'Failed to delete selected websites.' });
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const handleCheckAll = async () => {
+    if (totalItems > 50 && !confirm(`You are about to check ALL ${totalItems} websites. This may take a while. Continue?`)) return;
+    try {
+      setBulkActionLoading(true);
+      setBulkActionMessage(null);
+      const res = await checkAllWebsites();
+      const data = res.data;
+      setBulkActionMessage({
+        type: 'success',
+        text: `Checked all: ${data.success} success, ${data.failed} failed${data.skipped ? `, ${data.skipped} skipped` : ''}.`,
+      });
+      setSelectedIds([]);
+      await fetchWebsites(page, pageSize, searchTerm);
+      onRefresh();
+    } catch (err) {
+      setBulkActionMessage({ type: 'error', text: 'Failed to check all websites.' });
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!confirm(`⚠️ WARNING: You are about to DELETE ALL ${totalItems} websites and all related data. This action is IRREVERSIBLE. Are you sure?`)) return;
+    if (!confirm('Final confirmation: Delete ALL websites?')) return;
+    try {
+      setBulkActionLoading(true);
+      setBulkActionMessage(null);
+      const res = await deleteAllWebsites();
+      setBulkActionMessage({ type: 'success', text: `Deleted all: ${res.data.deletedCount} website(s).` });
+      setSelectedIds([]);
+      setPage(1);
+      await fetchWebsites(1, pageSize, searchTerm);
+      onRefresh();
+    } catch (err) {
+      setBulkActionMessage({ type: 'error', text: 'Failed to delete all websites.' });
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Filter displayed websites by status (client-side on current page)
   const filteredWebsites = websites.filter(site => {
-    const matchesSearch =
-      site.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      site.url.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesFilter =
-      filterStatus === 'all' ||
-      (filterStatus === 'active' && site.isActive) ||
-      (filterStatus === 'inactive' && !site.isActive);
-
-    return matchesSearch && matchesFilter;
+    if (filterStatus === 'all') return true;
+    if (filterStatus === 'active') return site.isActive;
+    if (filterStatus === 'inactive') return !site.isActive;
+    return true;
   });
+
+  const handlePageSizeChange = (newSize) => {
+    setPageSize(newSize);
+    setPage(1);
+  };
+
+  // Compute effective page info
+  const effectiveTotalPages = totalPages || 1;
+  const hasPreviousPage = page > 1;
+  const hasNextPage = page < effectiveTotalPages;
 
   if (loading && websites.length === 0) {
     return (
@@ -141,7 +293,7 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
         </div>
         <h3 className="error-state-title">Failed to load websites</h3>
         <p className="error-state-description">{error}</p>
-        <button className="btn btn-primary" onClick={fetchWebsites}>
+        <button className="btn btn-primary" onClick={() => fetchWebsites(page, pageSize, searchTerm)}>
           <RiRefreshLine style={{ marginRight: '6px' }} /> Try Again
         </button>
       </div>
@@ -185,6 +337,76 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
         </div>
       </div>
 
+      {/* Bulk Action Toolbar */}
+      {selectedIds.length > 0 && (
+        <div className="bulk-action-toolbar">
+          <div className="bulk-action-info">
+            <RiCheckboxCircleLine size={16} />
+            <span>{selectedIds.length} selected</span>
+          </div>
+          <div className="bulk-action-buttons">
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleBulkCheck}
+              disabled={bulkActionLoading}
+            >
+              <RiPulseLine size={14} style={{ marginRight: '4px' }} />
+              {bulkActionLoading ? 'Checking...' : 'Check selected'}
+            </button>
+            <button
+              className="btn btn-danger btn-sm"
+              onClick={handleBulkDelete}
+              disabled={bulkActionLoading}
+            >
+              <RiDeleteBinLine size={14} style={{ marginRight: '4px' }} />
+              Delete selected
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setSelectedIds([])}
+              disabled={bulkActionLoading}
+            >
+              <RiCloseLine size={14} style={{ marginRight: '4px' }} />
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Global Bulk Actions */}
+      <div className="toolbar" style={{ marginBottom: '16px', padding: '8px 12px' }}>
+        <div className="toolbar-actions" style={{ gap: '8px' }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={handleCheckAll}
+            disabled={bulkActionLoading || totalItems === 0}
+            title="Check all websites in database"
+          >
+            <RiPulseLine size={14} style={{ marginRight: '4px' }} />
+            Check all websites
+          </button>
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={handleDeleteAll}
+            disabled={bulkActionLoading || totalItems === 0}
+            title="Delete all websites in database"
+          >
+            <RiDeleteBinLine size={14} style={{ marginRight: '4px' }} />
+            Delete all websites
+          </button>
+        </div>
+      </div>
+
+      {/* Bulk Action Message */}
+      {bulkActionMessage && (
+        <div className={`alert ${bulkActionMessage.type === 'error' ? 'alert-error' : 'alert-success'}`}>
+          <span>{bulkActionMessage.text}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => setBulkActionMessage(null)}>
+            <RiCloseLine size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Show form if needed */}
       {showForm && (
         <div style={{ marginBottom: '20px' }}>
@@ -198,11 +420,11 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
       )}
 
       {/* Results info */}
-      {filteredWebsites.length > 0 && (
-        <p className="text-muted" style={{ fontSize: '12px', marginBottom: '16px' }}>
-          Showing {filteredWebsites.length} of {websites.length} websites
-        </p>
-      )}
+      <p className="text-muted" style={{ fontSize: '12px', marginBottom: '16px' }}>
+        {totalItems > 0
+          ? `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, totalItems)} of ${totalItems} websites`
+          : 'No websites found'}
+      </p>
 
       {/* Website Table */}
       <WebsiteTable
@@ -212,7 +434,42 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
         onDelete={handleDelete}
         onRunCheck={handleRunCheck}
         checkingWebsiteId={checkingWebsiteId}
+        selectedIds={selectedIds}
+        onToggleSelect={handleToggleSelect}
+        onToggleSelectAll={handleToggleSelectAll}
       />
+
+      {/* Pagination Controls */}
+      {totalPages > 0 && (
+        <div className="pagination-controls">
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => setPage(page - 1)}
+            disabled={!hasPreviousPage || loading}
+          >
+            Previous
+          </button>
+          <span className="pagination-info">
+            Page {page} of {effectiveTotalPages}
+          </span>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => setPage(page + 1)}
+            disabled={!hasNextPage || loading}
+          >
+            Next
+          </button>
+          <select
+            value={pageSize}
+            onChange={e => handlePageSizeChange(Number(e.target.value))}
+            className="pagination-size-select"
+          >
+            {[5, 10, 20, 50].map(size => (
+              <option key={size} value={size}>{size} / page</option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 }

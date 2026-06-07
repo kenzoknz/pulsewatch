@@ -17,7 +17,17 @@ const formatDate = (dateString) => {
   }
 };
 
-export default function WebsiteTable({ websites, onView, onEdit, onDelete, onRunCheck, checkingWebsiteId }) {
+export default function WebsiteTable({
+  websites,
+  onView,
+  onEdit,
+  onDelete,
+  onRunCheck,
+  checkingWebsiteId,
+  selectedIds = [],
+  onToggleSelect,
+  onToggleSelectAll,
+}) {
   if (!websites || websites.length === 0) {
     return (
       <div className="empty-state">
@@ -30,11 +40,23 @@ export default function WebsiteTable({ websites, onView, onEdit, onDelete, onRun
     );
   }
 
+  const allSelected = websites.length > 0 && websites.every(s => selectedIds.includes(s.id));
+  const someSelected = websites.some(s => selectedIds.includes(s.id));
+
   return (
     <div className="table-wrap">
       <table>
         <thead>
           <tr>
+            <th style={{ width: '40px' }}>
+              <input
+                type="checkbox"
+                checked={allSelected}
+                ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                onChange={(e) => onToggleSelectAll && onToggleSelectAll(e.target.checked)}
+                title="Select all on this page"
+              />
+            </th>
             <th>Status</th>
             <th>Name</th>
             <th>URL</th>
@@ -47,8 +69,15 @@ export default function WebsiteTable({ websites, onView, onEdit, onDelete, onRun
           {websites.map(site => (
             <tr
               key={site.id}
-              className={site.isActive ? 'check-row-online' : 'check-row-offline'}
+              className={`${site.isActive ? 'check-row-online' : 'check-row-offline'} ${selectedIds.includes(site.id) ? 'row-selected' : ''}`}
             >
+              <td>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(site.id)}
+                  onChange={() => onToggleSelect && onToggleSelect(site.id)}
+                />
+              </td>
               <td data-label="Status">
                 <span className={`status-badge ${site.isActive ? 'status-online' : 'status-offline'}`}>
                   <span className="status-dot" />

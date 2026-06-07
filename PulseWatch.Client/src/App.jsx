@@ -11,9 +11,11 @@ import {
   RiMoonLine,
   RiRefreshLine,
   RiSunLine,
+  RiArrowDownSLine,
+  RiArrowRightSLine,
 } from 'react-icons/ri';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTheme } from './hooks/useTheme';
 
 function WebsiteDetailRoute({ refreshKey, onBack }) {
@@ -33,6 +35,16 @@ function App() {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const isWebsitesRoute = /^\/websites/.test(location.pathname);
+  const [websitesExpanded, setWebsitesExpanded] = useState(isWebsitesRoute);
+
+  // Auto-expand when navigating to a websites route
+  useEffect(() => {
+    if (isWebsitesRoute) {
+      setWebsitesExpanded(true);
+    }
+  }, [isWebsitesRoute]);
 
   const triggerRefresh = () => {
     setRefreshKey(k => k + 1);
@@ -76,24 +88,34 @@ function App() {
               </NavLink>
             ))}
 
-            <div className="nav-group">
-              <div className="nav-group-title">
+            <div className={`nav-group ${websitesExpanded ? 'expanded' : ''}`}>
+              <button
+                className={`nav-group-title ${isWebsitesRoute ? 'active' : ''}`}
+                onClick={() => setWebsitesExpanded(prev => !prev)}
+              >
                 <span className="nav-icon"><RiGlobalLine size={18} /></span>
                 <span>Websites</span>
-              </div>
-              <NavLink
-                to="/websites/bulk-add"
-                className={({ isActive }) => `nav-item nav-subitem ${isActive ? 'active' : ''}`}
-              >
-                <span>Bulk Add</span>
-              </NavLink>
-              <NavLink
-                to="/websites"
-                className={({ isActive }) => `nav-item nav-subitem ${isActive ? 'active' : ''}`}
-                end
-              >
-                <span>Manage Websites</span>
-              </NavLink>
+                <span className="nav-group-arrow">
+                  {websitesExpanded ? <RiArrowDownSLine size={14} /> : <RiArrowRightSLine size={14} />}
+                </span>
+              </button>
+              {websitesExpanded && (
+                <>
+                  <NavLink
+                    to="/websites/bulk-add"
+                    className={({ isActive }) => `nav-item nav-subitem ${isActive ? 'active' : ''}`}
+                  >
+                    <span>Bulk Add</span>
+                  </NavLink>
+                  <NavLink
+                    to="/websites"
+                    className={({ isActive }) => `nav-item nav-subitem ${isActive ? 'active' : ''}`}
+                    end
+                  >
+                    <span>Manage Websites</span>
+                  </NavLink>
+                </>
+              )}
             </div>
           </nav>
         </aside>

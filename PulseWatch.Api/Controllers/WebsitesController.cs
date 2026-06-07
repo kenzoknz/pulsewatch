@@ -11,302 +11,163 @@ namespace PulseWatch.Api.Controllers;
 [Route("api/[controller]")]
 public class WebsitesController : ControllerBase
 {
-    private readonly AppDbContext _context;
-    private readonly UptimeCheckerService _uptimeCheckerService;
+    private readonly AppDbContext _db;
+    private readonly UptimeCheckerService _checker;
+    private readonly ILogger<WebsitesController> _logger;
 
-    public WebsitesController(AppDbContext context, UptimeCheckerService uptimeCheckerService)
+    public WebsitesController(AppDbContext db, UptimeCheckerService checker, ILogger<WebsitesController> logger)
     {
-        _context = context;
-        _uptimeCheckerService = uptimeCheckerService;
+        _db = db;
+        _checker = checker;
+        _logger = logger;
     }
 
-
-    [HttpPost("bulk")]
-    public async Task<ActionResult<BulkCreateWebsiteResultDto>> BulkCreateWebsites(BulkCreateWebsitesDto dto)
-    {
-        var result = new BulkCreateWebsiteResultDto();
-
-        if (dto.Urls == null || dto.Urls.Count == 0)
-        {
-            result.Summary = new BulkCreateWebsiteSummaryDto { Total = 0 };
-            return Ok(result);
-        }
-
-        var maxInterval = 1440;
-        var minInterval = 1;
-        var checkInterval = Math.Clamp(dto.DefaultCheckIntervalMinutes, minInterval, maxInterval);
-        var strategy = string.IsNullOrWhiteSpace(dto.NameStrategy) ? "auto" : dto.NameStrategy.ToLowerInvariant();
-
-        // Load existing URLs for duplicate check
-        var existingUrls = await _context.Websites
-            .Select(w => w.Url)
-            .ToListAsync();
-        var existingUrlSet = new HashSet<string>(existingUrls, StringComparer.OrdinalIgnoreCase);
-
-        // Track seen normalized URLs in this batch
-        var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        // Step 1: Normalize all URLs and classify
-        var normalizedEntries = new List<(string Original, string? Normalized, string? Error)>();
-
-        foreach (var rawUrl in dto.Urls)
-        {
-            if (string.IsNullOrWhiteSpace(rawUrl))
-            {
-                continue;
-            }
-
-            if (!TryNormalizeUrl(rawUrl, out var normalizedUrl))
-            {
-                normalizedEntries.Add((rawUrl, null, "Invalid website URL or domain"));
-                continue;
-            }
-
-            normalizedEntries.Add((rawUrl, normalizedUrl, null));
-        }
-
-        result.Summary.Total = normalizedEntries.Count;
-
-        // Step 2: Process valid URLs
-        var websitesToCreate = new List<Website>();
-
-        foreach (var entry in normalizedEntries)
-        {
-            // Invalid URL
-            if (entry.Normalized == null)
-            {
-                result.Failed.Add(new BulkWebsiteErrorDto
-                {
-                    Url = entry.Original,
-                    Reason = entry.Error ?? "Invalid URL"
-                });
-                continue;
-            }
-
-            // Duplicate in this batch
-            if (!seenUrls.Add(entry.Normalized))
-            {
-                result.Skipped.Add(new BulkWebsiteErrorDto
-                {
-                    Url = entry.Original,
-                    Reason = "Duplicate URL in request"
-                });
-                continue;
-            }
-
-            // Already exists in DB
-            if (existingUrlSet.Contains(entry.Normalized))
-            {
-                result.Skipped.Add(new BulkWebsiteErrorDto
-                {
-                    Url = entry.Original,
-                    Reason = "Website already exists"
-                });
-                continue;
-            }
-
-            // Resolve name
-            var name = await ResolveNameAsync(entry.Normalized, strategy);
-
-            var website = new Website
-            {
-                Name = name,
-                Url = entry.Normalized,
-                CheckIntervalMinutes = checkInterval,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            websitesToCreate.Add(website);
-            existingUrlSet.Add(entry.Normalized);
-        }
-
-        // Step 3: Save all new websites
-        if (websitesToCreate.Count > 0)
-        {
-            _context.Websites.AddRange(websitesToCreate);
-            await _context.SaveChangesAsync();
-        }
-
-        // Step 4: Build response
-        result.Created = websitesToCreate.Select(w => ToResponseDto(w)).ToList();
-        result.Summary.Created = result.Created.Count;
-        result.Summary.Skipped = result.Skipped.Count;
-        result.Summary.Failed = result.Failed.Count;
-
-        return Ok(result);
-    }
-
-    private async Task<string> ResolveNameAsync(string url, string strategy)
-    {
-        // Try to get title from page
-        if (strategy is "title" or "auto")
-        {
-            try
-            {
-                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-                var response = await httpClient.GetAsync(url);
-                if (response.IsSuccessStatusCode)
-                {
-                    var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
-                    if (contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var html = await response.Content.ReadAsStringAsync();
-                        var titleMatch = System.Text.RegularExpressions.Regex.Match(
-                            html,
-                            @"<title[^>]*>(.*?)</title>",
-                            System.Text.RegularExpressions.RegexOptions.IgnoreCase
-                                | System.Text.RegularExpressions.RegexOptions.Singleline);
-
-                        if (titleMatch.Success)
-                        {
-                            var title = System.Net.WebUtility.HtmlDecode(titleMatch.Groups[1].Value.Trim());
-                            if (!string.IsNullOrWhiteSpace(title) && title.Length <= 200)
-                            {
-                                return title;
-                            }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // Fall through to hostname fallback
-            }
-
-            if (strategy == "title")
-            {
-                // Strategy "title" with no title found: fallback to hostname
-            }
-        }
-
-        // Fallback: derive name from hostname
-        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
-        {
-            var host = uri.Host;
-            if (host.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
-            {
-                host = host[4..];
-            }
-            return host;
-        }
-
-        return url;
-    }
-
+    // GET /api/websites (paged)
     [HttpGet]
-    public async Task<ActionResult<List<WebsiteResponseDto>>> GetWebsites()
+    public async Task<ActionResult<PagedResponseDto<WebsiteResponseDto>>> GetWebsites(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null)
     {
-        var websites = await _context.Websites
-            .Where(w => w.IsActive)
-            .OrderByDescending(w => w.CreatedAt)
-            .Select(w => ToResponseDto(w))
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = _db.Websites
+            .Include(w => w.UptimeChecks.OrderByDescending(c => c.CheckedAt).Take(1))
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLower();
+            query = query.Where(w =>
+                w.Name.ToLower().Contains(s) ||
+                w.Url.ToLower().Contains(s));
+        }
+
+        var totalItems = await query.CountAsync();
+
+        var websites = await query
+            .OrderBy(w => w.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(websites);
+        var items = websites.Select(MapToDto).ToList();
+        var totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+
+        return Ok(new PagedResponseDto<WebsiteResponseDto>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = totalPages
+        });
     }
 
-    [HttpGet("{id}")]
+    // GET /api/websites/{id}
+    [HttpGet("{id:int}")]
     public async Task<ActionResult<WebsiteResponseDto>> GetWebsite(int id)
     {
-        var website = await _context.Websites.FindAsync(id);
+        var website = await _db.Websites
+            .Include(w => w.UptimeChecks.OrderByDescending(c => c.CheckedAt).Take(1))
+            .FirstOrDefaultAsync(w => w.Id == id);
 
-        if (website == null)
-        {
-            return NotFound();
-        }
+        if (website == null) return NotFound();
 
-        return Ok(ToResponseDto(website));
+        return Ok(MapToDto(website));
     }
 
+    // POST /api/websites
     [HttpPost]
-    public async Task<ActionResult<WebsiteResponseDto>> CreateWebsite(CreateWebsiteDto dto)
+    public async Task<ActionResult<WebsiteResponseDto>> CreateWebsite([FromBody] CreateWebsiteDto dto)
     {
-        if (!TryNormalizeUrl(dto.Url, out var normalizedUrl))
-        {
-            return BadRequest("Invalid website URL or domain.");
-        }
-
         var website = new Website
         {
-            Name = dto.Name.Trim(),
-            Url = normalizedUrl,
+            Name = dto.Name,
+            Url = dto.Url,
             CheckIntervalMinutes = dto.CheckIntervalMinutes,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
 
-        _context.Websites.Add(website);
-        await _context.SaveChangesAsync();
+        _db.Websites.Add(website);
+        await _db.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetWebsite), new { id = website.Id }, ToResponseDto(website));
+        return CreatedAtAction(nameof(GetWebsite), new { id = website.Id }, MapToDto(website));
     }
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateWebsite(int id, UpdateWebsiteDto dto)
+
+    // GET /api/websites/{id}/stats
+    [HttpGet("{id:int}/stats")]
+    public async Task<ActionResult<WebsiteStatsDto>> GetWebsiteStats(int id)
     {
-        var website = await _context.Websites.FindAsync(id);
-        if (website == null)
+        var website = await _db.Websites.FindAsync(id);
+        if (website == null) return NotFound();
+
+        var checks = await _db.UptimeChecks
+            .AsNoTracking()
+            .Where(c => c.WebsiteId == id)
+            .OrderByDescending(c => c.CheckedAt)
+            .ToListAsync();
+
+        var totalChecks = checks.Count;
+        var onlineChecks = checks.Count(c => c.IsOnline);
+        var offlineChecks = totalChecks - onlineChecks;
+        var uptimePercentage = totalChecks == 0 ? 0 : (double)onlineChecks / totalChecks * 100;
+        var avgResponseTime = totalChecks == 0 ? 0 : checks.Average(c => c.ResponseTimeMs);
+        var lastCheck = checks.FirstOrDefault();
+
+        return Ok(new WebsiteStatsDto
         {
-            return NotFound();
-        }
-        if (!TryNormalizeUrl(dto.Url, out var normalizedUrl))
-        {
-            return BadRequest("Invalid website URL or domain.");
-        }
-
-        website.Name = dto.Name.Trim();
-        website.Url = normalizedUrl;
-        website.CheckIntervalMinutes = dto.CheckIntervalMinutes;
-        website.IsActive = dto.IsActive;
-
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+            WebsiteId = id,
+            WebsiteName = website.Name,
+            UptimePercentage = Math.Round(uptimePercentage, 2),
+            AverageResponseTimeMs = Math.Round(avgResponseTime, 2),
+            TotalChecks = totalChecks,
+            OnlineChecks = onlineChecks,
+            OfflineChecks = offlineChecks,
+            LastCheckedAt = lastCheck?.CheckedAt,
+            CurrentStatus = lastCheck?.IsOnline
+        });
     }
-    [HttpDelete("{id}")] //Soft delete - set IsActive to false
-    public async Task<IActionResult> DeleteWebsite(int id)
-    {
-        var website = await _context.Websites.FindAsync(id);
 
-        if (website == null)
-        {
-            return NotFound();
-        }
-        website.IsActive = false;
-        await _context.SaveChangesAsync();
-
-        return NoContent();
-    }
-    [HttpGet("{id}/checks")]
+    // GET /api/websites/{id}/checks
+    [HttpGet("{id:int}/checks")]
     public async Task<ActionResult<PagedResponseDto<UptimeCheckResponseDto>>> GetWebsiteChecks(
         int id,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        page = Math.Max(page, 1);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var website = await _db.Websites.FindAsync(id);
+        if (website == null) return NotFound();
 
-        var websiteExists = await _context.Websites.AnyAsync(w => w.Id == id);
-        if (!websiteExists)
-        {
-            return NotFound();
-        }
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100;
 
-        var query = _context.UptimeChecks
-            .Where(c => c.WebsiteId == id)
-            .OrderByDescending(c => c.CheckedAt);
+        var query = _db.UptimeChecks
+            .AsNoTracking()
+            .Where(c => c.WebsiteId == id);
 
         var totalItems = await query.CountAsync();
 
         var checks = await query
+            .OrderByDescending(c => c.CheckedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(c => ToCheckResponseDto(c))
+            .Select(c => new UptimeCheckResponseDto
+            {
+                Id = c.Id,
+                IsOnline = c.IsOnline,
+                StatusCode = c.StatusCode,
+                ResponseTimeMs = c.ResponseTimeMs,
+                ErrorMessage = c.ErrorMessage,
+                CheckedAt = c.CheckedAt
+            })
             .ToListAsync();
 
-        var totalPages = totalItems == 0
-            ? 0
-            : (int)Math.Ceiling(totalItems / (double)pageSize);
+        var totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
 
         return Ok(new PagedResponseDto<UptimeCheckResponseDto>
         {
@@ -317,90 +178,17 @@ public class WebsitesController : ControllerBase
             TotalPages = totalPages
         });
     }
-    [HttpPost("{id}/checks/run")]
-    public async Task<ActionResult<UptimeCheckResponseDto>> RunWebsiteCheck(int id)
-    {
-        var website = await _context.Websites.FindAsync(id);
 
-        if (website == null)
-        {
-            return NotFound();
-        }
-
-        var lastCheck = await _context.UptimeChecks
-            .Where(c => c.WebsiteId == id)
-            .OrderByDescending(c => c.CheckedAt)
-            .FirstOrDefaultAsync();
-
-        var openDowntime = await _context.DowntimeEvents
-            .FirstOrDefaultAsync(d => d.WebsiteId == id && d.EndedAt == null);
-
-        var check = await _uptimeCheckerService.CheckWebsiteAsync(website);
-
-        if ((lastCheck == null || lastCheck.IsOnline) && !check.IsOnline)
-        {
-            _context.DowntimeEvents.Add(new DowntimeEvent
-            {
-                WebsiteId = website.Id,
-                StartedAt = check.CheckedAt,
-                Reason = check.ErrorMessage ?? $"Status code: {check.StatusCode}"
-            });
-        }
-
-        if (openDowntime != null && check.IsOnline)
-        {
-            openDowntime.EndedAt = check.CheckedAt;
-        }
-
-        _context.UptimeChecks.Add(check);
-        await _context.SaveChangesAsync();
-
-        return Ok(ToCheckResponseDto(check));
-    }
-
-    [HttpGet("{id}/stats")]
-    public async Task<ActionResult<WebsiteStatsDto>> GetWebsiteStats(int id)
-    {
-        var website = await _context.Websites.FindAsync(id);
-
-        if (website == null) return NotFound();
-        var checks = await _context.UptimeChecks
-            .Where(c => c.WebsiteId == id)
-            .ToListAsync();
-        var totalChecks = checks.Count;
-        var onlineChecks = checks.Count(c => c.IsOnline);
-        var offlineChecks = checks.Count(c => !c.IsOnline);
-
-        var latestCheck = checks
-                        .OrderByDescending(c => c.CheckedAt)
-                        .FirstOrDefault();
-        var result = new WebsiteStatsDto
-        {
-            WebsiteId = website.Id,
-            WebsiteName = website.Name,
-            TotalChecks = totalChecks,
-            OnlineChecks = onlineChecks,
-            OfflineChecks = offlineChecks,
-            UptimePercentage = totalChecks == 0 ? 0 : Math.Round((double)onlineChecks / totalChecks * 100, 2),
-            AverageResponseTimeMs = totalChecks == 0 ? 0 : Math.Round(checks.Average(c => c.ResponseTimeMs), 2),
-            LastCheckedAt = latestCheck?.CheckedAt,
-            CurrentStatus = latestCheck?.IsOnline
-        };
-
-        return Ok(result);
-    }
-    [HttpGet("{id}/downtime-events")]
+    // GET /api/websites/{id}/downtime-events
+    [HttpGet("{id:int}/downtime-events")]
     public async Task<ActionResult<List<DowntimeEventResponseDto>>> GetDowntimeEvents(int id)
     {
-        var websiteExists = await _context.Websites.AnyAsync(w => w.Id == id);
+        var website = await _db.Websites.FindAsync(id);
+        if (website == null) return NotFound();
 
-        if (!websiteExists)
-        {
-            return NotFound();
-        }
-
-        var events = await _context.DowntimeEvents
-            .Where(e => e.WebsiteId == id) //website ID sort decending
+        var events = await _db.DowntimeEvents
+            .AsNoTracking()
+            .Where(e => e.WebsiteId == id)
             .OrderByDescending(e => e.StartedAt)
             .Select(e => new DowntimeEventResponseDto
             {
@@ -408,50 +196,265 @@ public class WebsitesController : ControllerBase
                 StartedAt = e.StartedAt,
                 EndedAt = e.EndedAt,
                 Reason = e.Reason,
-                DurationMinutes = e.EndedAt == null
-                    ? null
-                    : Math.Round((e.EndedAt.Value - e.StartedAt).TotalMinutes, 2)
+                DurationMinutes = e.EndedAt.HasValue
+                    ? (e.EndedAt.Value - e.StartedAt).TotalMinutes
+                    : null
             })
             .ToListAsync();
 
         return Ok(events);
     }
-    private static bool TryNormalizeUrl(string url, out string normalizedUrl)
+
+    // PUT /api/websites/{id}
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<WebsiteResponseDto>> UpdateWebsite(int id, [FromBody] UpdateWebsiteDto dto)
     {
-        normalizedUrl = string.Empty;
+        var website = await _db.Websites.FindAsync(id);
+        if (website == null) return NotFound();
 
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return false;
-        }
+        website.Name = dto.Name;
+        website.Url = dto.Url;
+        website.CheckIntervalMinutes = dto.CheckIntervalMinutes;
+        website.IsActive = dto.IsActive;
 
-        var trimmedUrl = url.Trim();
-        var urlWithScheme = trimmedUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-            || trimmedUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-            ? trimmedUrl
-            : $"https://{trimmedUrl}";
+        await _db.SaveChangesAsync();
 
-        if (!Uri.TryCreate(urlWithScheme, UriKind.Absolute, out var uri))
-        {
-            return false;
-        }
-
-        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(uri.Host) || !uri.Host.Contains('.'))
-        {
-            return false;
-        }
-
-        normalizedUrl = uri.ToString();
-        return true;
+        return Ok(MapToDto(website));
     }
 
-    private static WebsiteResponseDto ToResponseDto(Website website)
+    // DELETE /api/websites/{id}
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteWebsite(int id)
     {
+        var website = await _db.Websites.FindAsync(id);
+        if (website == null) return NotFound();
+
+        _db.Websites.Remove(website);
+        await _db.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    // POST /api/websites/{id}/check
+    [HttpPost("{id:int}/check")]
+    public async Task<ActionResult<UptimeCheckResponseDto>> RunCheck(int id)
+    {
+        var website = await _db.Websites.FindAsync(id);
+        if (website == null) return NotFound();
+
+        var result = await _checker.CheckWebsiteAsync(website);
+
+        _db.UptimeChecks.Add(result);
+        await _db.SaveChangesAsync();
+
+        return Ok(new UptimeCheckResponseDto
+        {
+            Id = result.Id,
+            IsOnline = result.IsOnline,
+            StatusCode = result.StatusCode,
+            ResponseTimeMs = result.ResponseTimeMs,
+            ErrorMessage = result.ErrorMessage,
+            CheckedAt = result.CheckedAt
+        });
+    }
+
+    // POST /api/websites/bulk
+    [HttpPost("bulk")]
+    public async Task<ActionResult<BulkCreateWebsiteResultDto>> BulkCreate([FromBody] BulkCreateWebsitesDto dto)
+    {
+        if (dto.Urls == null || dto.Urls.Count == 0)
+        {
+            return BadRequest(new BulkCreateWebsiteResultDto
+            {
+                Summary = new BulkCreateWebsiteSummaryDto { Total = 0 }
+            });
+        }
+
+        var summary = new BulkCreateWebsiteSummaryDto { Total = dto.Urls.Count };
+        var created = new List<WebsiteResponseDto>();
+        var skipped = new List<BulkWebsiteErrorDto>();
+        var failed = new List<BulkWebsiteErrorDto>();
+
+        foreach (var url in dto.Urls)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                skipped.Add(new BulkWebsiteErrorDto { Url = url, Reason = "Empty URL." });
+                summary.Skipped++;
+                continue;
+            }
+
+            try
+            {
+                var website = new Website
+                {
+                    Name = dto.NameStrategy == "auto"
+                        ? new Uri(url.Trim()).Host
+                        : url.Trim(),
+                    Url = url.Trim(),
+                    CheckIntervalMinutes = dto.DefaultCheckIntervalMinutes,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _db.Websites.Add(website);
+                await _db.SaveChangesAsync();
+
+                created.Add(MapToDto(website));
+                summary.Created++;
+            }
+            catch (Exception ex)
+            {
+                failed.Add(new BulkWebsiteErrorDto { Url = url, Reason = ex.Message });
+                summary.Failed++;
+            }
+        }
+
+        return Ok(new BulkCreateWebsiteResultDto
+        {
+            Summary = summary,
+            Created = created,
+            Skipped = skipped,
+            Failed = failed
+        });
+    }
+
+    // POST /api/websites/bulk-check
+    [HttpPost("bulk-check")]
+    public async Task<ActionResult<CheckAllResponseDto>> BulkCheck([FromBody] BulkCheckRequestDto dto)
+    {
+        if (dto.WebsiteIds == null || dto.WebsiteIds.Count == 0)
+            return BadRequest("No website IDs provided.");
+
+        var websites = await _db.Websites
+            .Where(w => dto.WebsiteIds.Contains(w.Id))
+            .ToListAsync();
+
+        var summary = new CheckAllResponseDto
+        {
+            Total = dto.WebsiteIds.Count,
+            Skipped = dto.WebsiteIds.Count - websites.Count
+        };
+
+        foreach (var website in websites)
+        {
+            try
+            {
+                var checkResult = await _checker.CheckWebsiteAsync(website);
+                _db.UptimeChecks.Add(checkResult);
+                await _db.SaveChangesAsync();
+
+                summary.Results.Add(new BulkCheckItemResultDto
+                {
+                    WebsiteId = website.Id,
+                    Name = website.Name,
+                    IsOnline = checkResult.IsOnline,
+                    StatusCode = checkResult.StatusCode,
+                    ResponseTimeMs = checkResult.ResponseTimeMs,
+                    ErrorMessage = checkResult.ErrorMessage
+                });
+
+                if (checkResult.IsOnline) summary.Success++;
+                else summary.Failed++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking website {WebsiteId}", website.Id);
+                summary.Results.Add(new BulkCheckItemResultDto
+                {
+                    WebsiteId = website.Id,
+                    Name = website.Name,
+                    IsOnline = false,
+                    ErrorMessage = ex.Message
+                });
+                summary.Failed++;
+            }
+        }
+
+        return Ok(summary);
+    }
+
+    // POST /api/websites/bulk-delete
+    [HttpPost("bulk-delete")]
+    public async Task<ActionResult<BulkDeleteResponseDto>> BulkDelete([FromBody] BulkDeleteRequestDto dto)
+    {
+        if (dto.WebsiteIds == null || dto.WebsiteIds.Count == 0)
+            return BadRequest("No website IDs provided.");
+
+        var websites = await _db.Websites
+            .Where(w => dto.WebsiteIds.Contains(w.Id))
+            .ToListAsync();
+
+        var count = websites.Count;
+        _db.Websites.RemoveRange(websites);
+        await _db.SaveChangesAsync();
+
+        return Ok(new BulkDeleteResponseDto { DeletedCount = count });
+    }
+
+    // POST /api/websites/check-all
+    [HttpPost("check-all")]
+    public async Task<ActionResult<CheckAllResponseDto>> CheckAll()
+    {
+        var websites = await _db.Websites.ToListAsync();
+
+        var summary = new CheckAllResponseDto
+        {
+            Total = websites.Count
+        };
+
+        foreach (var website in websites)
+        {
+            try
+            {
+                var checkResult = await _checker.CheckWebsiteAsync(website);
+                _db.UptimeChecks.Add(checkResult);
+                await _db.SaveChangesAsync();
+
+                summary.Results.Add(new BulkCheckItemResultDto
+                {
+                    WebsiteId = website.Id,
+                    Name = website.Name,
+                    IsOnline = checkResult.IsOnline,
+                    StatusCode = checkResult.StatusCode,
+                    ResponseTimeMs = checkResult.ResponseTimeMs,
+                    ErrorMessage = checkResult.ErrorMessage
+                });
+
+                if (checkResult.IsOnline) summary.Success++;
+                else summary.Failed++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking website {WebsiteId}", website.Id);
+                summary.Results.Add(new BulkCheckItemResultDto
+                {
+                    WebsiteId = website.Id,
+                    Name = website.Name,
+                    IsOnline = false,
+                    ErrorMessage = ex.Message
+                });
+                summary.Failed++;
+            }
+        }
+
+        return Ok(summary);
+    }
+
+    // POST /api/websites/delete-all
+    [HttpPost("delete-all")]
+    public async Task<ActionResult<DeleteAllResponseDto>> DeleteAll()
+    {
+        var count = await _db.Websites.CountAsync();
+        await _db.Websites.ExecuteDeleteAsync();
+
+        return Ok(new DeleteAllResponseDto { DeletedCount = count });
+    }
+
+    private static WebsiteResponseDto MapToDto(Website website)
+    {
+        var lastCheck = website.UptimeChecks?.FirstOrDefault();
+
         return new WebsiteResponseDto
         {
             Id = website.Id,
@@ -462,17 +465,4 @@ public class WebsitesController : ControllerBase
             CreatedAt = website.CreatedAt
         };
     }
-    private static UptimeCheckResponseDto ToCheckResponseDto(UptimeCheck check)
-    {
-        return new UptimeCheckResponseDto
-        {
-            Id = check.Id,
-            IsOnline = check.IsOnline,
-            StatusCode = check.StatusCode,
-            ResponseTimeMs = check.ResponseTimeMs,
-            ErrorMessage = check.ErrorMessage,
-            CheckedAt = check.CheckedAt
-        };
-    }
-
 }
