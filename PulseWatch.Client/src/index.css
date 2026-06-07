@@ -1,13 +1,17 @@
 /* ============================================
    CSS Variables & Theme
    ============================================ */
-:root {
-  /* Dark theme (default on dark prefers-color-scheme) */
+:root,
+:root[data-theme='dark'] {
+  /* Dark theme */
   --bg: #0f1419;
+  --bg-primary: #0f1419;
+  --bg-secondary: #111827;
   --surface: #1a1e2e;
   --surface-elevated: #252b3d;
   --border: #3d4456;
   --text: #d1d5db;
+  --text-secondary: #9ca3af;
   --text-muted: #9ca3af;
   --text-primary: #ffffff;
 
@@ -55,24 +59,32 @@
   line-height: 1.5;
   color: var(--text);
   background: var(--bg);
-  color-scheme: dark light;
+  color-scheme: dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Light theme */
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f8f9fa;
-    --surface: #ffffff;
-    --surface-elevated: #f3f4f6;
-    --border: #e5e7eb;
-    --text: #4b5563;
-    --text-muted: #6b7280;
-    --text-primary: #1f2937;
-  }
+:root[data-theme='light'] {
+  /* Light theme */
+  --bg: #f8f9fa;
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #f1f5f9;
+  --surface: #ffffff;
+  --surface-elevated: #f3f4f6;
+  --border: #e5e7eb;
+  --text: #4b5563;
+  --text-secondary: #64748b;
+  --text-muted: #6b7280;
+  --text-primary: #1f2937;
+  --primary: #0284c7;
+  --primary-dark: #0369a1;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --info: #0891b2;
+  color-scheme: light;
 }
 
 /* ============================================

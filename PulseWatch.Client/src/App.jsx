@@ -7,10 +7,13 @@ import {
   RiGlobalLine,
   RiRadarLine,
   RiArrowLeftLine,
+  RiMoonLine,
   RiRefreshLine,
+  RiSunLine,
 } from 'react-icons/ri';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useState } from 'react';
+import { useTheme } from './hooks/useTheme';
 
 function WebsiteDetailRoute({ refreshKey, onBack }) {
   const { websiteId } = useParams();
@@ -26,6 +29,7 @@ function WebsiteDetailRoute({ refreshKey, onBack }) {
 
 function App() {
   const [refreshKey, setRefreshKey] = useState(0);
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -109,6 +113,14 @@ function App() {
               </div>
             </div>
             <div className="topbar-right">
+              <button
+                className="btn-refresh"
+                onClick={toggleTheme}
+                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                {theme === 'dark' ? <RiSunLine size={18} /> : <RiMoonLine size={18} />}
+              </button>
               <button
                 className="btn-refresh"
                 onClick={triggerRefresh}
