@@ -16,6 +16,13 @@ export default function WebsiteForm({ initialData, onSubmit, onCancel, isSubmitt
     }
   }, [initialData]);
 
+  const normalizeUrl = (value) => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -29,9 +36,14 @@ export default function WebsiteForm({ initialData, onSubmit, onCancel, isSubmitt
       newErrors.url = 'URL is required';
     } else {
       try {
-        new URL(formData.url);
+        const normalizedUrl = normalizeUrl(formData.url);
+        const parsedUrl = new URL(normalizedUrl);
+
+        if (!parsedUrl.hostname.includes('.')) {
+          newErrors.url = 'Please enter a valid domain, e.g. google.com';
+        }
       } catch {
-        newErrors.url = 'Please enter a valid URL';
+        newErrors.url = 'Please enter a valid URL or domain, e.g. google.com';
       }
     }
 
@@ -61,7 +73,10 @@ export default function WebsiteForm({ initialData, onSubmit, onCancel, isSubmitt
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validateForm()) {
-      onSubmit(formData);
+      onSubmit({
+        ...formData,
+        url: normalizeUrl(formData.url),
+      });
     }
   };
 
@@ -93,7 +108,7 @@ export default function WebsiteForm({ initialData, onSubmit, onCancel, isSubmitt
           name="url"
           value={formData.url}
           onChange={handleChange}
-          placeholder="e.g., https://api.example.com"
+          placeholder="e.g., google.com, x.com, dut.udn.vn"
         />
         {errors.url && <div className="form-error">{errors.url}</div>}
       </div>

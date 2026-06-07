@@ -45,10 +45,15 @@ public class WebsitesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<WebsiteResponseDto>> CreateWebsite(CreateWebsiteDto dto)
     {
+        if (!TryNormalizeUrl(dto.Url, out var normalizedUrl))
+        {
+            return BadRequest("Invalid website URL or domain.");
+        }
+
         var website = new Website
         {
             Name = dto.Name.Trim(),
-            Url = dto.Url.Trim(),
+            Url = normalizedUrl,
             CheckIntervalMinutes = dto.CheckIntervalMinutes,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
@@ -67,8 +72,13 @@ public class WebsitesController : ControllerBase
         {
             return NotFound();
         }
+        if (!TryNormalizeUrl(dto.Url, out var normalizedUrl))
+        {
+            return BadRequest("Invalid website URL or domain.");
+        }
+
         website.Name = dto.Name.Trim();
-        website.Url = dto.Url.Trim();
+        website.Url = normalizedUrl;
         website.CheckIntervalMinutes = dto.CheckIntervalMinutes;
         website.IsActive = dto.IsActive;
 
@@ -164,6 +174,40 @@ public class WebsitesController : ControllerBase
 
         return Ok(events);
     }
+    private static bool TryNormalizeUrl(string url, out string normalizedUrl)
+    {
+        normalizedUrl = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return false;
+        }
+
+        var trimmedUrl = url.Trim();
+        var urlWithScheme = trimmedUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || trimmedUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            ? trimmedUrl
+            : $"https://{trimmedUrl}";
+
+        if (!Uri.TryCreate(urlWithScheme, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(uri.Host) || !uri.Host.Contains('.'))
+        {
+            return false;
+        }
+
+        normalizedUrl = uri.ToString();
+        return true;
+    }
+
     private static WebsiteResponseDto ToResponseDto(Website website)
     {
         return new WebsiteResponseDto

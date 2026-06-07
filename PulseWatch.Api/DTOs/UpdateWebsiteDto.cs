@@ -9,7 +9,6 @@ public class UpdateWebsiteDto
     public string Name { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Website URL is required.")]
-    [Url(ErrorMessage = "Invalid URL format.")]
     public string Url { get; set; } = string.Empty;
 
     [Range(1, 1440, ErrorMessage = "Check interval must be between 1 and 1440 minutes.")]
