@@ -9,4 +9,6 @@ public class UptimeMonitoringOptions
     public int HttpTimeoutSeconds { get; set; } = 10;
 
     public int RetentionDays { get; set; } = 90;
+
+    public int MaxRetries { get; set; } = 3;
 }
