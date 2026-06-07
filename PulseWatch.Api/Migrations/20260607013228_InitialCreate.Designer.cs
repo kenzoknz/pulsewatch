@@ -12,7 +12,7 @@ using PulseWatch.Api.Data;
 namespace PulseWatch.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260605144921_InitialCreate")]
+    [Migration("20260607013228_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
