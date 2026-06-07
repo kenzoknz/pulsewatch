@@ -20,7 +20,19 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddControllers();
 builder.Services.AddHttpClient<UptimeCheckerService>();
 builder.Services.AddHostedService<UptimeBackgroundService>();
-
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactClient", policy =>
+    {
+        policy.SetIsOriginAllowed(origin =>
+            {
+                var uri = new Uri(origin);
+                return uri.Host == "localhost" || uri.Host == "127.0.0.1";
+            })
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -33,6 +45,7 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseCors("AllowReactClient");
 app.UseHttpsRedirection();
 
 var summaries = new[]

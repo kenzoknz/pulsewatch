@@ -1,0 +1,393 @@
+/* PulseWatch specific component styles */
+
+/* Health Overview Section */
+.health-overview {
+  background: linear-gradient(135deg, var(--surface-elevated) 0%, var(--surface) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 20px;
+}
+
+.health-overview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.health-overview-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.health-overview-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.health-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+  .health-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .health-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+.health-stat {
+  text-align: center;
+}
+
+.health-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.health-stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Quick Actions Section */
+.quick-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .quick-actions {
+    flex-direction: column;
+  }
+
+  .quick-actions button {
+    width: 100%;
+  }
+}
+
+/* Website Detail Page Styles */
+.website-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+}
+
+.website-detail-title {
+  flex: 1;
+}
+
+.website-detail-title h2 {
+  margin-bottom: 8px;
+}
+
+.website-detail-url {
+  font-size: 13px;
+  color: var(--primary);
+  text-decoration: none;
+  display: inline-block;
+  word-break: break-all;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.website-detail-actions {
+  display: flex;
+  gap: 8px;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    flex-direction: column;
+
+    button {
+      width: 100%;
+    }
+  }
+}
+
+/* Stats Grid for Detail Page */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 16px;
+  background: var(--surface-elevated);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.stat-item-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.stat-item-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Uptime Ring/Progress */
+.uptime-ring-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.uptime-ring {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  background: conic-gradient(var(--success) 0deg var(--success) calc(var(--uptime, 99) * 3.6deg), var(--surface-elevated) calc(var(--uptime, 99) * 3.6deg));
+  position: relative;
+}
+
+.uptime-ring::before {
+  content: attr(data-percentage);
+  position: absolute;
+  width: 110px;
+  height: 110px;
+  background: var(--surface);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.uptime-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Downtime Events Timeline */
+.downtime-timeline {
+  position: relative;
+  padding-left: 32px;
+}
+
+.downtime-event {
+  position: relative;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  border-left: 3px solid var(--danger);
+}
+
+.downtime-event::before {
+  content: '';
+  position: absolute;
+  left: -24px;
+  top: 20px;
+  width: 16px;
+  height: 16px;
+  background: var(--danger);
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+}
+
+.downtime-event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.downtime-event-time {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.downtime-event-duration {
+  font-size: 12px;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  padding: 2px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.downtime-event-reason {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Form Modal for Add/Edit Website */
+.form-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+
+  @media (max-width: 640px) {
+    padding: 20px;
+  }
+}
+
+.form-modal-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+
+/* Check History Table specific */
+.check-row-online {
+  --row-color: rgba(16, 185, 129, 0.1);
+}
+
+.check-row-offline {
+  --row-color: rgba(239, 68, 68, 0.1);
+}
+
+.check-row-online:hover,
+.check-row-offline:hover {
+  background: var(--row-color);
+}
+
+/* Dashboard Specific */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+}
+
+.dashboard-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dashboard-actions {
+  display: flex;
+  gap: 12px;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    flex-direction: column;
+
+    button {
+      width: 100%;
+    }
+  }
+}
+
+/* Website Table specific */
+.website-list-header {
+  margin-bottom: 20px;
+}
+
+.website-list-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+/* Refresh button */
+.btn-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  font-size: 16px;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  background: var(--surface-elevated);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.btn-refresh.loading {
+  animation: spin 1s linear infinite;
+}
+
+/* Section divider */
+.section-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 24px 0;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-title::before {
+  content: '';
+  width: 3px;
+  height: 20px;
+  background: var(--primary);
+  border-radius: 2px;
+}

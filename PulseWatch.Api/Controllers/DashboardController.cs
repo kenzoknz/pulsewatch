@@ -18,24 +18,35 @@ public class DashboardController : ControllerBase
     public async Task<ActionResult<DashboardSummaryDto>> GetSummary()
     {
         var websites = await _context.Websites
+            .AsNoTracking()
             .Where(w => w.IsActive)
             .ToListAsync();
-        var websiteIds = websites.Select(w => w.Id).ToList();
-        var latestChecks = await _context.UptimeChecks
-            .Where(c => websiteIds.Contains(c.WebsiteId))
-            .GroupBy(c => c.WebsiteId)
-            .Select(g => g.OrderByDescending(c => c.CheckedAt).FirstOrDefault())
-            .Where(c => c != null)
-            .ToListAsync()!;
 
-        var onlineWebsites = latestChecks.Count(c => c!.IsOnline);
-        var offlineWebsites = latestChecks.Count(c => !c!.IsOnline);
+        var websiteIds = websites.Select(w => w.Id).ToList();
+
+        var checks = websiteIds.Count == 0
+            ? []
+            : await _context.UptimeChecks
+                .AsNoTracking()
+                .Where(c => websiteIds.Contains(c.WebsiteId))
+                .OrderByDescending(c => c.CheckedAt)
+                .ToListAsync();
+
+        var latestChecks = checks
+            .GroupBy(c => c.WebsiteId)
+            .Select(g => g.First())
+            .ToList();
+
+        var onlineWebsites = latestChecks.Count(c => c.IsOnline);
+        var offlineWebsites = latestChecks.Count(c => !c.IsOnline);
 
         var averageResponseTime = latestChecks.Count == 0
             ? 0
-            : Math.Round(latestChecks.Average(c => c!.ResponseTimeMs), 2);
+            : Math.Round(latestChecks.Average(c => c.ResponseTimeMs), 2);
 
-        var totalDowntimeEvents = await _context.DowntimeEvents.CountAsync();
+        var totalDowntimeEvents = await _context.DowntimeEvents
+            .AsNoTracking()
+            .CountAsync();
 
         var result = new DashboardSummaryDto
         {

@@ -21,6 +21,7 @@ public class WebsitesController : ControllerBase
     public async Task<ActionResult<List<WebsiteResponseDto>>> GetWebsites()
     {
         var websites = await _context.Websites
+            .Where(w => w.IsActive)
             .OrderByDescending(w => w.CreatedAt)
             .Select(w => ToResponseDto(w))
             .ToListAsync();
