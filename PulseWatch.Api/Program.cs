@@ -2,6 +2,11 @@ using Microsoft.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using PulseWatch.Api.Data;
 using PulseWatch.Api.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
+using PulseWatch.Api.Models;
+using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
@@ -14,9 +19,69 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Description = "API documentation for PulseWatch project"
     });
+
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name         = "Authorization",
+        Type         = SecuritySchemeType.Http,
+        Scheme       = "bearer",
+        BearerFormat = "JWT",
+        In           = ParameterLocation.Header,
+        Description  = "Enter JWT token (without 'Bearer ' prefix)"
+    });
+
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
+    });
 });
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    // Password policy
+    options.Password.RequireDigit = false;
+    options.Password.RequireLowercase = false;
+    options.Password.RequireUppercase = false;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequiredLength = 8;
+
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+    options.Lockout.MaxFailedAccessAttempts = 5;
+
+    options.User.RequireUniqueEmail = true;
+    options.SignIn.RequireConfirmedEmail = false;
+})
+.AddEntityFrameworkStores<AppDbContext>();
+var jwtSettings = builder.Configuration.GetSection("Jwt");
+var secretKey = jwtSettings["Key"]!;
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidIssuer = jwtSettings["Issuer"],
+
+        ValidateAudience = true,
+        ValidAudience = jwtSettings["Audience"],
+
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero 
+    };
+});
+
+builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.Configure<UptimeMonitoringOptions>(
     builder.Configuration.GetSection(UptimeMonitoringOptions.SectionName));
@@ -42,6 +107,9 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod();
     });
 });
+builder.Services.Configure<JwtOptions>(
+builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.AddScoped<JwtTokenService>();
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -56,6 +124,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("AllowReactClient");
 app.UseHttpsRedirection();
+app.UseAuthentication(); // 1. Đọc & decode JWT → xác định user là ai (gán vào HttpContext.User)
+app.UseAuthorization();  // 2. Kiểm tra [Authorize] attribute → trả 401/403 nếu không hợp lệ
+
 
 var summaries = new[]
 {
