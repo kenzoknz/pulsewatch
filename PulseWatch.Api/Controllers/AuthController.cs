@@ -8,7 +8,6 @@ using PulseWatch.Api.Services;
 using System.Security.Claims;
 
 namespace PulseWatch.Api.Controllers;
-
 [ApiController]
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
@@ -22,25 +21,29 @@ public class AuthController : ControllerBase
         JwtTokenService jwtTokenService,
         AppDbContext db)
     {
-        _userManager = userManager;
+        _userManager     = userManager;
         _jwtTokenService = jwtTokenService;
-        _db = db;
+        _db              = db;
     }
 
     [AllowAnonymous]
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterDto dto)
     {
-        var existingUser = await _userManager.FindByEmailAsync(dto.Email);
-        if (existingUser != null)
+        var existingEmail = await _userManager.FindByEmailAsync(dto.Email);
+        if (existingEmail != null)
             return BadRequest(new { message = "This email has already been registered." });
+
+        var existingUsername = await _userManager.FindByNameAsync(dto.Username);
+        if (existingUsername != null)
+            return BadRequest(new { message = "This username is already taken." });
 
         var user = new ApplicationUser
         {
-            UserName = dto.Email,
-            Email = dto.Email,
+            UserName       = dto.Username,
+            Email          = dto.Email,
             EmailConfirmed = true,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt      = DateTime.UtcNow
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -50,24 +53,15 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Registration failed.", errors });
         }
 
-        var orphanWebsites = _db.Websites
-            .Where(w => w.UserId == null || w.UserId == "");
+        await _userManager.AddToRoleAsync(user, AppRoles.User);
 
-        if (orphanWebsites.Any())
-        {
-            foreach (var website in orphanWebsites)
-                website.UserId = user.Id;
-
-            await _db.SaveChangesAsync();
-        }
-
-        var (token, expiresAt) = _jwtTokenService.GenerateToken(user);
+        var (token, expiresAt) = await _jwtTokenService.GenerateTokenAsync(user);
 
         return Ok(new AuthResponseDto
         {
             AccessToken = token,
-            ExpiresAt = expiresAt,
-            User = new UserDto { Id = user.Id, Email = user.Email! }
+            ExpiresAt   = expiresAt,
+            User        = new UserDto { Id = user.Id, Email = user.Email!, Username = user.UserName! }
         });
     }
 
@@ -75,21 +69,25 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginDto dto)
     {
-        var user = await _userManager.FindByEmailAsync(dto.Email);
+        var isEmail = dto.EmailOrUsername.Contains('@');
+        var user = isEmail
+            ? await _userManager.FindByEmailAsync(dto.EmailOrUsername)
+            : await _userManager.FindByNameAsync(dto.EmailOrUsername);
+
         if (user == null)
-            return Unauthorized(new { message = "Invalid email or password." });
+            return Unauthorized(new { message = "Invalid email/username or password." });
 
         var isPasswordValid = await _userManager.CheckPasswordAsync(user, dto.Password);
         if (!isPasswordValid)
-            return Unauthorized(new { message = "Invalid email or password." });
+            return Unauthorized(new { message = "Invalid email/username or password." });
 
-        var (token, expiresAt) = _jwtTokenService.GenerateToken(user);
+        var (token, expiresAt) = await _jwtTokenService.GenerateTokenAsync(user);
 
         return Ok(new AuthResponseDto
         {
             AccessToken = token,
-            ExpiresAt = expiresAt,
-            User = new UserDto { Id = user.Id, Email = user.Email! }
+            ExpiresAt   = expiresAt,
+            User        = new UserDto { Id = user.Id, Email = user.Email!, Username = user.UserName! }
         });
     }
 
@@ -105,6 +103,6 @@ public class AuthController : ControllerBase
         if (user == null)
             return NotFound(new { message = "User not found." });
 
-        return Ok(new UserDto { Id = user.Id, Email = user.Email! });
+        return Ok(new UserDto { Id = user.Id, Email = user.Email!, Username = user.UserName! });
     }
 }

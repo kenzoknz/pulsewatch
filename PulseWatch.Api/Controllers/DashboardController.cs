@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PulseWatch.Api.Data;
@@ -5,21 +7,32 @@ using PulseWatch.Api.DTOs;
 
 namespace PulseWatch.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class DashboardController : ControllerBase
 {
     private readonly AppDbContext _context;
+
     public DashboardController(AppDbContext context)
     {
         _context = context;
     }
+
+    private string GetCurrentUserId()
+    {
+        return User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("Unauthorized.");
+    }
+
     [HttpGet("summary")]
     public async Task<ActionResult<DashboardSummaryDto>> GetSummary()
     {
+        var userId = GetCurrentUserId();
+
         var websites = await _context.Websites
             .AsNoTracking()
-            .Where(w => w.IsActive)
+            .Where(w => w.UserId == userId && w.IsActive)
             .ToListAsync();
 
         var websiteIds = websites.Select(w => w.Id).ToList();
@@ -46,6 +59,7 @@ public class DashboardController : ControllerBase
 
         var totalDowntimeEvents = await _context.DowntimeEvents
             .AsNoTracking()
+            .Where(e => websiteIds.Contains(e.WebsiteId))
             .CountAsync();
 
         var result = new DashboardSummaryDto

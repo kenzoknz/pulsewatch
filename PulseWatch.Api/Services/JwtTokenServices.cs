@@ -4,12 +4,10 @@ using PulseWatch.Api.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Identity;
 
 namespace PulseWatch.Api.Services;
 
-/// <summary>
-/// Cấu hình JWT từ appsettings.json.
-/// </summary>
 public class JwtOptions
 {
     public const string SectionName = "Jwt";
@@ -23,11 +21,12 @@ public class JwtOptions
 public class JwtTokenService
 {
     private readonly JwtOptions _jwtOptions;
-
+    private readonly UserManager<ApplicationUser> _userManager;
   
-    public JwtTokenService(IOptions<JwtOptions> jwtOptions)
+    public JwtTokenService(IOptions<JwtOptions> jwtOptions, UserManager<ApplicationUser> userManager)
     {
-        _jwtOptions = jwtOptions.Value;
+        _jwtOptions  = jwtOptions.Value;
+        _userManager = userManager; 
     }
 
     /// Flow:
@@ -36,37 +35,33 @@ public class JwtTokenService
     /// 3. Tạo token với issuer, audience, claims, expiry, signature
     /// 4. Serialize token thành string
    
-    public (string Token, DateTime ExpiresAt) GenerateToken(ApplicationUser user)
+    public async Task<(string Token, DateTime ExpiresAt)> GenerateTokenAsync(ApplicationUser user)
     {
-        
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id),
-            new Claim(ClaimTypes.Email, user.Email!),
+            new Claim(ClaimTypes.Email,          user.Email!),
             new Claim(JwtRegisteredClaimNames.Sub, user.Id),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 
-        var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_jwtOptions.Key)
-        );
+        var roles = await _userManager.GetRolesAsync(user);
+        foreach (var role in roles)
+            claims.Add(new Claim(ClaimTypes.Role, role));
 
-        
+        var key         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.Key));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var expiresAt   = DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes);
 
-        var expiresAt = DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes);
-
-        
         var tokenDescriptor = new JwtSecurityToken(
-            issuer: _jwtOptions.Issuer,      // Ai phát hành
-            audience: _jwtOptions.Audience,   // Phát hành cho ai
-            claims: claims,                    // Thông tin user
-            expires: expiresAt,               // Khi nào hết hạn
-            signingCredentials: credentials    // Chữ ký
+            issuer:             _jwtOptions.Issuer,
+            audience:           _jwtOptions.Audience,
+            claims:             claims,
+            expires:            expiresAt,
+            signingCredentials: credentials
         );
 
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var token = tokenHandler.WriteToken(tokenDescriptor);
+        var token = new JwtSecurityTokenHandler().WriteToken(tokenDescriptor);
 
         return (token, expiresAt);
     }

@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PulseWatch.Api.Data;
@@ -7,6 +9,7 @@ using PulseWatch.Api.Services;
 
 namespace PulseWatch.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class WebsitesController : ControllerBase
@@ -32,17 +35,16 @@ public class WebsitesController : ControllerBase
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 10;
         if (pageSize > 100) pageSize = 100;
-
+        var userId = GetCurrentUserId();
         var query = _db.Websites
-            .Include(w => w.UptimeChecks.OrderByDescending(c => c.CheckedAt).Take(1))
-            .AsQueryable();
+                    .Where(w => w.UserId == userId)
+                    .Include(w => w.UptimeChecks.OrderByDescending(c => c.CheckedAt).Take(1))
+                    .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var s = search.Trim().ToLower();
             query = query.Where(w =>
-                w.Name.ToLower().Contains(s) ||
-                w.Url.ToLower().Contains(s));
+                w.Name.Contains(search) || w.Url.Contains(search));
         }
 
         var totalItems = await query.CountAsync();
@@ -67,12 +69,14 @@ public class WebsitesController : ControllerBase
     }
 
     // GET /api/websites/{id}
-    [HttpGet("{id:int}")]
+    [HttpGet("{id}")]
     public async Task<ActionResult<WebsiteResponseDto>> GetWebsite(int id)
     {
+        var userId = GetCurrentUserId();
         var website = await _db.Websites
+            .Where(w => w.Id == id && w.UserId == userId)
             .Include(w => w.UptimeChecks.OrderByDescending(c => c.CheckedAt).Take(1))
-            .FirstOrDefaultAsync(w => w.Id == id);
+            .FirstOrDefaultAsync();
 
         if (website == null) return NotFound();
 
@@ -83,14 +87,18 @@ public class WebsitesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<WebsiteResponseDto>> CreateWebsite([FromBody] CreateWebsiteDto dto)
     {
+        var userId = GetCurrentUserId(); 
+
         var website = new Website
         {
+            UserId = userId,  
             Name = dto.Name,
             Url = dto.Url,
             CheckIntervalMinutes = dto.CheckIntervalMinutes,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
+
 
         _db.Websites.Add(website);
         await _db.SaveChangesAsync();
@@ -102,7 +110,9 @@ public class WebsitesController : ControllerBase
     [HttpGet("{id:int}/stats")]
     public async Task<ActionResult<WebsiteStatsDto>> GetWebsiteStats(int id)
     {
-        var website = await _db.Websites.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var website = await _db.Websites
+            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
         if (website == null) return NotFound();
 
         var checks = await _db.UptimeChecks
@@ -139,7 +149,9 @@ public class WebsitesController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        var website = await _db.Websites.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var website = await _db.Websites
+            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
         if (website == null) return NotFound();
 
         if (page < 1) page = 1;
@@ -183,7 +195,9 @@ public class WebsitesController : ControllerBase
     [HttpGet("{id:int}/downtime-events")]
     public async Task<ActionResult<List<DowntimeEventResponseDto>>> GetDowntimeEvents(int id)
     {
-        var website = await _db.Websites.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var website = await _db.Websites
+            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
         if (website == null) return NotFound();
 
         var events = await _db.DowntimeEvents
@@ -209,7 +223,11 @@ public class WebsitesController : ControllerBase
     [HttpPut("{id:int}")]
     public async Task<ActionResult<WebsiteResponseDto>> UpdateWebsite(int id, [FromBody] UpdateWebsiteDto dto)
     {
-        var website = await _db.Websites.FindAsync(id);
+        var userId = GetCurrentUserId();
+
+        var website = await _db.Websites
+        .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
+
         if (website == null) return NotFound();
 
         website.Name = dto.Name;
@@ -226,7 +244,9 @@ public class WebsitesController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteWebsite(int id)
     {
-        var website = await _db.Websites.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var website = await _db.Websites
+            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
         if (website == null) return NotFound();
 
         _db.Websites.Remove(website);
@@ -239,7 +259,9 @@ public class WebsitesController : ControllerBase
     [HttpPost("{id:int}/check")]
     public async Task<ActionResult<UptimeCheckResponseDto>> RunCheck(int id)
     {
-        var website = await _db.Websites.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var website = await _db.Websites
+            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
         if (website == null) return NotFound();
 
         var result = await _checker.CheckWebsiteAsync(website);
@@ -270,6 +292,7 @@ public class WebsitesController : ControllerBase
             });
         }
 
+        var userId = GetCurrentUserId();
         var summary = new BulkCreateWebsiteSummaryDto { Total = dto.Urls.Count };
         var created = new List<WebsiteResponseDto>();
         var skipped = new List<BulkWebsiteErrorDto>();
@@ -288,6 +311,7 @@ public class WebsitesController : ControllerBase
             {
                 var website = new Website
                 {
+                    UserId = userId,
                     Name = dto.NameStrategy == "auto"
                         ? new Uri(url.Trim()).Host
                         : url.Trim(),
@@ -326,8 +350,9 @@ public class WebsitesController : ControllerBase
         if (dto.WebsiteIds == null || dto.WebsiteIds.Count == 0)
             return BadRequest("No website IDs provided.");
 
+        var userId = GetCurrentUserId();
         var websites = await _db.Websites
-            .Where(w => dto.WebsiteIds.Contains(w.Id))
+            .Where(w => w.UserId == userId && dto.WebsiteIds.Contains(w.Id))
             .ToListAsync();
 
         var summary = new CheckAllResponseDto
@@ -381,8 +406,9 @@ public class WebsitesController : ControllerBase
         if (dto.WebsiteIds == null || dto.WebsiteIds.Count == 0)
             return BadRequest("No website IDs provided.");
 
+        var userId = GetCurrentUserId();
         var websites = await _db.Websites
-            .Where(w => dto.WebsiteIds.Contains(w.Id))
+            .Where(w => w.UserId == userId && dto.WebsiteIds.Contains(w.Id))
             .ToListAsync();
 
         var count = websites.Count;
@@ -396,7 +422,10 @@ public class WebsitesController : ControllerBase
     [HttpPost("check-all")]
     public async Task<ActionResult<CheckAllResponseDto>> CheckAll()
     {
-        var websites = await _db.Websites.ToListAsync();
+        var userId = GetCurrentUserId();
+        var websites = await _db.Websites
+            .Where(w => w.UserId == userId && w.IsActive)
+            .ToListAsync();
 
         var summary = new CheckAllResponseDto
         {
@@ -445,10 +474,12 @@ public class WebsitesController : ControllerBase
     [HttpPost("delete-all")]
     public async Task<ActionResult<DeleteAllResponseDto>> DeleteAll()
     {
-        var count = await _db.Websites.CountAsync();
-        await _db.Websites.ExecuteDeleteAsync();
+        var userId = GetCurrentUserId();
+        var deletedCount = await _db.Websites
+            .Where(w => w.UserId == userId)
+            .ExecuteDeleteAsync();
 
-        return Ok(new DeleteAllResponseDto { DeletedCount = count });
+        return Ok(new DeleteAllResponseDto { DeletedCount = deletedCount });
     }
 
     private static WebsiteResponseDto MapToDto(Website website)
@@ -464,5 +495,10 @@ public class WebsitesController : ControllerBase
             IsActive = website.IsActive,
             CreatedAt = website.CreatedAt
         };
+    }
+    private string GetCurrentUserId()
+    {
+        return User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("Unauthorized.");
     }
 }

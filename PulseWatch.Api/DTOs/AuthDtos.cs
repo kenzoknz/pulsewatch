@@ -3,6 +3,11 @@ namespace PulseWatch.Api.DTOs;
 
 public class RegisterDto
 {
+    [Required(ErrorMessage = "Username is required.")]
+    [MinLength(3, ErrorMessage = "Username must be at least 3 characters long.")]
+    [RegularExpression(@"^[a-zA-Z0-9_-]+$", ErrorMessage = "Username can only contain letters, numbers, underscores, and hyphens.")]
+    public string Username { get; set; } = string.Empty;
+
     [Required(ErrorMessage = "Email is required.")]
     [EmailAddress(ErrorMessage = "Invalid email format.")]
     public string Email { get; set; } = string.Empty;
@@ -17,9 +22,9 @@ public class RegisterDto
 
 public class LoginDto
 {
-    [Required(ErrorMessage = "Email is required.")]
-    [EmailAddress(ErrorMessage = "Invalid email format.")]
-    public string Email { get; set; } = string.Empty;
+    // Chấp nhận cả email lẫn username — không dùng [EmailAddress] để tránh reject username
+    [Required(ErrorMessage = "Email or username is required.")]
+    public string EmailOrUsername { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Password is required.")]
     public string Password { get; set; } = string.Empty;
@@ -34,4 +39,5 @@ public class UserDto
 {
     public string Id { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
 }
