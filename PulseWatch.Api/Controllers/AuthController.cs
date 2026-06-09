@@ -57,11 +57,13 @@ public class AuthController : ControllerBase
 
         var (token, expiresAt) = await _jwtTokenService.GenerateTokenAsync(user);
 
+        var roles = await _userManager.GetRolesAsync(user);
+
         return Ok(new AuthResponseDto
         {
             AccessToken = token,
             ExpiresAt   = expiresAt,
-            User        = new UserDto { Id = user.Id, Email = user.Email!, Username = user.UserName! }
+            User        = new UserDto { Id = user.Id, Email = user.Email!, Username = user.UserName!, Roles = roles }
         });
     }
 
@@ -81,13 +83,18 @@ public class AuthController : ControllerBase
         if (!isPasswordValid)
             return Unauthorized(new { message = "Invalid email/username or password." });
 
+        if (!user.IsActive)
+            return Unauthorized(new { message = "Your account has been deactivated. Please contact support." });
+
         var (token, expiresAt) = await _jwtTokenService.GenerateTokenAsync(user);
+
+        var roles = await _userManager.GetRolesAsync(user);
 
         return Ok(new AuthResponseDto
         {
             AccessToken = token,
             ExpiresAt   = expiresAt,
-            User        = new UserDto { Id = user.Id, Email = user.Email!, Username = user.UserName! }
+            User        = new UserDto { Id = user.Id, Email = user.Email!, Username = user.UserName!, Roles = roles }
         });
     }
 
@@ -103,6 +110,8 @@ public class AuthController : ControllerBase
         if (user == null)
             return NotFound(new { message = "User not found." });
 
-        return Ok(new UserDto { Id = user.Id, Email = user.Email!, Username = user.UserName! });
+        var roles = await _userManager.GetRolesAsync(user);
+
+        return Ok(new UserDto { Id = user.Id, Email = user.Email!, Username = user.UserName!, Roles = roles });
     }
 }

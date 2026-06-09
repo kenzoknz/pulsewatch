@@ -64,4 +64,14 @@ export const getWebsiteChecks = (id, page = 1, pageSize = 20) =>
 export const runWebsiteCheck = (id) => api.post(`/websites/${id}/checks/run`);
 export const getDowntimeEvents = (id) => api.get(`/websites/${id}/downtime-events`);
 
+// Profile
+export const getProfile = () => api.get('/profile');
+export const updateProfile = (data) => api.put('/profile', data);
+export const changePassword = (data) => api.post('/profile/change-password', data);
+
+// Admin
+export const getAdminStats = () => api.get('/admin/stats');
+export const getAdminUsers = () => api.get('/admin/users');
+export const toggleUserActive = (userId, isActive) => api.patch(`/admin/users/${userId}/toggle-active`, { isActive });
+
 export default api;

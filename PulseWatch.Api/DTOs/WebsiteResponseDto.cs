@@ -19,4 +19,7 @@ public class WebsiteResponseDto
     public long? LastResponseTimeMs { get; set; }
     public DateTime? LastCheckedAt { get; set; }
     public DateTime NextCheckAt { get; set; }
+    
+    public string OwnerEmail { get; set; } = string.Empty;
+    public string OwnerUsername { get; set; } = string.Empty;
 }
