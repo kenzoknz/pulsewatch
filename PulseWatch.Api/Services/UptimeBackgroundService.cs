@@ -28,6 +28,7 @@ public class UptimeBackgroundService : BackgroundService
             _options.SchedulerDelaySeconds,
             _options.RetentionDays
         );
+
         DateTime lastCleanupDate = DateTime.MinValue;
 
         while (!stoppingToken.IsCancellationRequested)
@@ -42,34 +43,22 @@ public class UptimeBackgroundService : BackgroundService
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var checker = scope.ServiceProvider.GetRequiredService<UptimeCheckerService>();
 
-            var websites = await context.Websites
-                                        .Where(w => w.IsActive)
-                                        .ToListAsync(stoppingToken);
+            var websitesToCheck = await context.Websites
+                .Include(w => w.User)
+                .Where(w => w.IsActive && w.NextCheckAt <= DateTime.UtcNow)
+                .ToListAsync(stoppingToken);
 
-            if (websites.Any())
+            if (websitesToCheck.Any())
             {
-                var websiteIds = websites.Select(w => w.Id).ToList();
-
-                var openDowntimes = await context.DowntimeEvents
-                    .Where(d => websiteIds.Contains(d.WebsiteId) && d.EndedAt == null)
-                    .ToDictionaryAsync(d => d.WebsiteId, stoppingToken);
-
-                var lastChecks = await context.UptimeChecks
-                    .Where(c => websiteIds.Contains(c.WebsiteId))
-                    .GroupBy(c => c.WebsiteId)
-                    .Select(g => g.OrderByDescending(c => c.CheckedAt).FirstOrDefault())
-                    .ToDictionaryAsync(c => c!.WebsiteId, stoppingToken);
-
-                foreach (var website in websites)
+                foreach (var website in websitesToCheck)
                 {
                     try
                     {
                         var check = await checker.CheckWebsiteAsync(website);
 
-                        lastChecks.TryGetValue(website.Id, out var lastCheck);
-                        openDowntimes.TryGetValue(website.Id, out var openDowntime);
+                        var wasOnline = website.IsOnline;
 
-                        if ((lastCheck == null || lastCheck.IsOnline) && !check.IsOnline)
+                        if (wasOnline != false && !check.IsOnline)
                         {
                             context.DowntimeEvents.Add(new DowntimeEvent
                             {
@@ -77,42 +66,64 @@ public class UptimeBackgroundService : BackgroundService
                                 StartedAt = check.CheckedAt,
                                 Reason = check.ErrorMessage ?? $"Status code: {check.StatusCode}"
                             });
+
+                            _logger.LogWarning(
+                                "[DOWN] {Name} ({Url}) went OFFLINE. StatusCode={StatusCode}, Error={Error}",
+                                website.Name, website.Url, check.StatusCode, check.ErrorMessage
+                            );
+                        }
+                        else if (wasOnline == false && check.IsOnline)
+                        {
+                            var openDowntime = await context.DowntimeEvents
+                                .FirstOrDefaultAsync(
+                                    d => d.WebsiteId == website.Id && d.EndedAt == null,
+                                    stoppingToken
+                                );
+
+                            if (openDowntime != null)
+                            {
+                                openDowntime.EndedAt = check.CheckedAt;
+                            }
+
+                            _logger.LogInformation(
+                                "[UP] {Name} ({Url}) is back ONLINE after downtime.",
+                                website.Name, website.Url
+                            );
                         }
 
-                        if (openDowntime != null && check.IsOnline)
-                        {
-                            openDowntime.EndedAt = check.CheckedAt;
-                        }
+                        website.IsOnline = check.IsOnline;
+                        website.LastStatusCode = check.StatusCode;
+                        website.LastResponseTimeMs = check.ResponseTimeMs;
+                        website.LastCheckedAt = check.CheckedAt;
+                        website.NextCheckAt = check.CheckedAt.AddSeconds(website.CheckIntervalSeconds);
 
                         context.UptimeChecks.Add(check);
 
                         checkedCount++;
-                        if (check.IsOnline)
-                        {
-                            onlineCount++;
-                        }
-                        else
-                        {
-                            offlineCount++;
-                        }
-
+                        if (check.IsOnline) onlineCount++;
+                        else offlineCount++;
                         totalResponseTimeMs += check.ResponseTimeMs;
 
                         _logger.LogInformation(
-                            "Checked {Url}: {Status} | StatusCode: {StatusCode} | ResponseTime: {ResponseTime}ms",
-                            website.Url, check.IsOnline ? "Online" : "Offline", check.StatusCode, check.ResponseTimeMs
+                            "Checked {Url}: {Status} | StatusCode: {StatusCode} | ResponseTime: {ResponseTime}ms | NextCheck: {NextCheck}",
+                            website.Url,
+                            check.IsOnline ? "Online" : "Offline",
+                            check.StatusCode,
+                            check.ResponseTimeMs,
+                            website.NextCheckAt.ToString("HH:mm:ss")
                         );
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error checking website {WebsiteId}", website.Id);
+                        _logger.LogError(ex, "Error checking website {WebsiteId} ({Url})", website.Id, website.Url);
+
+                        website.NextCheckAt = DateTime.UtcNow.AddSeconds(website.CheckIntervalSeconds);
                     }
                 }
 
                 await context.SaveChangesAsync(stoppingToken);
             }
 
-            // Xử lý dọn dẹp dữ liệu cũ (Retention policy) duy trì một lần mỗi ngày
             if (DateTime.UtcNow.Date > lastCleanupDate.Date)
             {
                 try
@@ -124,25 +135,16 @@ public class UptimeBackgroundService : BackgroundService
                         .ExecuteDeleteAsync(stoppingToken);
 
                     if (deletedRows > 0)
-                    {
-                        _logger.LogInformation(
-                            "[Retention] Deleted {Count} old UptimeCheck records older than {CutoffDate}",
-                            deletedRows, cutoffDate.ToString("yyyy-MM-dd")
-                        );
-                    }
+                        _logger.LogInformation("[Retention] Deleted {Count} old UptimeCheck records older than {CutoffDate}",
+                            deletedRows, cutoffDate.ToString("yyyy-MM-dd"));
 
                     int deletedEvents = await context.DowntimeEvents
                         .Where(e => e.EndedAt != null && e.EndedAt < cutoffDate)
                         .ExecuteDeleteAsync(stoppingToken);
 
                     if (deletedEvents > 0)
-                    {
-                        _logger.LogInformation(
-                            "[Retention] Deleted {Count} old DowntimeEvent records",
-                            deletedEvents
-                        );
-                    }
-                  
+                        _logger.LogInformation("[Retention] Deleted {Count} old DowntimeEvent records", deletedEvents);
+
                     lastCleanupDate = DateTime.UtcNow;
                 }
                 catch (Exception ex)
@@ -155,16 +157,12 @@ public class UptimeBackgroundService : BackgroundService
             {
                 var elapsedMs = (DateTime.UtcNow - loopStartedAt).TotalMilliseconds;
                 var averageResponseTimeMs = totalResponseTimeMs / checkedCount;
-                var failureRate = checkedCount == 0 ? 0 : (double)offlineCount / checkedCount;
+                var failureRate = (double)offlineCount / checkedCount;
 
                 _logger.LogInformation(
                     "[UptimeMetrics] Checked={CheckedCount}, Online={OnlineCount}, Offline={OfflineCount}, AverageResponseTimeMs={AverageResponseTimeMs}, FailureRate={FailureRate:P2}, LoopElapsedMs={LoopElapsedMs}",
-                    checkedCount,
-                    onlineCount,
-                    offlineCount,
-                    averageResponseTimeMs,
-                    failureRate,
-                    elapsedMs
+                    checkedCount, onlineCount, offlineCount,
+                    averageResponseTimeMs, failureRate, elapsedMs
                 );
             }
 

@@ -3,7 +3,7 @@ namespace PulseWatch.Api.DTOs;
 public class BulkCreateWebsitesDto
 {
     public List<string> Urls { get; set; } = [];
-    public int DefaultCheckIntervalMinutes { get; set; } = 5;
+    public int DefaultCheckIntervalSeconds { get; set; } = 300;
     public string NameStrategy { get; set; } = "auto";
 }
 

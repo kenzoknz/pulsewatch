@@ -8,9 +8,15 @@ public class WebsiteResponseDto
 
     public string Url { get; set; } = string.Empty;
 
-    public int CheckIntervalMinutes { get; set; }
+    public int CheckIntervalSeconds { get; set; }
 
     public bool IsActive { get; set; }
 
     public DateTime CreatedAt { get; set; }
+
+    public bool? IsOnline { get; set; }
+    public int? LastStatusCode { get; set; }
+    public long? LastResponseTimeMs { get; set; }
+    public DateTime? LastCheckedAt { get; set; }
+    public DateTime NextCheckAt { get; set; }
 }

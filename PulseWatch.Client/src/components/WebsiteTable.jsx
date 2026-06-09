@@ -69,7 +69,7 @@ export default function WebsiteTable({
           {websites.map(site => (
             <tr
               key={site.id}
-              className={`${site.isActive ? 'check-row-online' : 'check-row-offline'} ${selectedIds.includes(site.id) ? 'row-selected' : ''}`}
+              className={`${!site.isActive ? 'check-row-offline' : site.isOnline === false ? 'check-row-offline' : 'check-row-online'} ${selectedIds.includes(site.id) ? 'row-selected' : ''}`}
             >
               <td>
                 <input
@@ -79,10 +79,22 @@ export default function WebsiteTable({
                 />
               </td>
               <td data-label="Status">
-                <span className={`status-badge ${site.isActive ? 'status-online' : 'status-offline'}`}>
-                  <span className="status-dot" />
-                  {site.isActive ? 'Active' : 'Inactive'}
-                </span>
+                {!site.isActive ? (
+                  <span className="status-badge" style={{ color: '#a1a1aa', background: 'rgba(161, 161, 170, 0.1)' }}>
+                    <span className="status-dot" style={{ background: '#a1a1aa' }} />
+                    Paused
+                  </span>
+                ) : site.isOnline === null ? (
+                  <span className="status-badge" style={{ color: '#fbbf24', background: 'rgba(251, 191, 36, 0.1)' }}>
+                    <span className="status-dot" style={{ background: '#fbbf24' }} />
+                    Pending
+                  </span>
+                ) : (
+                  <span className={`status-badge ${site.isOnline ? 'status-online' : 'status-offline'}`}>
+                    <span className="status-dot" />
+                    {site.isOnline ? 'Online' : 'Offline'}
+                  </span>
+                )}
               </td>
               <td data-label="Name">{site.name}</td>
               <td data-label="URL">
@@ -95,7 +107,7 @@ export default function WebsiteTable({
                   {site.url}
                 </a>
               </td>
-              <td data-label="Interval">{site.checkIntervalMinutes} min</td>
+              <td data-label="Interval">{site.checkIntervalSeconds} sec</td>
               <td data-label="Created">{formatDate(site.createdAt)}</td>
               <td data-label="Actions">
                 <div className="flex gap-2" style={{ justifyContent: 'flex-end' }}>

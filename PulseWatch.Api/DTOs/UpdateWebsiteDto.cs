@@ -11,8 +11,8 @@ public class UpdateWebsiteDto
     [Required(ErrorMessage = "Website URL is required.")]
     public string Url { get; set; } = string.Empty;
 
-    [Range(1, 1440, ErrorMessage = "Check interval must be between 1 and 1440 minutes.")]
-    public int CheckIntervalMinutes { get; set; } = 5;
+    [Range(60, 86400, ErrorMessage = "Check interval must be between 60 and 86400 seconds.")]
+    public int CheckIntervalSeconds { get; set; } = 300;
 
     public bool IsActive { get; set; } = true;
 }

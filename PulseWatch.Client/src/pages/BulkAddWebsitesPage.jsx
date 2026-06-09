@@ -4,7 +4,7 @@ import { RiAlertLine, RiCheckboxCircleLine, RiCloseCircleLine, RiUploadCloudLine
 
 export default function BulkAddWebsitesPage({ onCompleted }) {
   const [rawUrls, setRawUrls] = useState('');
-  const [defaultCheckIntervalMinutes, setDefaultCheckIntervalMinutes] = useState(5);
+  const [defaultCheckIntervalSeconds, setDefaultCheckIntervalSeconds] = useState(300);
   const [nameStrategy, setNameStrategy] = useState('auto');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState(null);
@@ -53,7 +53,7 @@ export default function BulkAddWebsitesPage({ onCompleted }) {
 
       const response = await bulkCreateWebsites({
         urls: preview.urls,
-        defaultCheckIntervalMinutes: Number(defaultCheckIntervalMinutes),
+        defaultCheckIntervalSeconds: Number(defaultCheckIntervalSeconds),
         nameStrategy,
       });
 
@@ -90,14 +90,14 @@ export default function BulkAddWebsitesPage({ onCompleted }) {
 
         <div className="bulk-add-options">
           <div className="form-group">
-            <label htmlFor="bulk-interval">Default check interval minutes</label>
+            <label htmlFor="bulk-interval">Default check interval (seconds)</label>
             <input
               id="bulk-interval"
               type="number"
-              min="1"
-              max="1440"
-              value={defaultCheckIntervalMinutes}
-              onChange={event => setDefaultCheckIntervalMinutes(event.target.value)}
+              min="60"
+              max="86400"
+              value={defaultCheckIntervalSeconds}
+              onChange={event => setDefaultCheckIntervalSeconds(event.target.value)}
             />
           </div>
 

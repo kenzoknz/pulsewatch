@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PulseWatch.Api.Data;
 
@@ -11,9 +12,11 @@ using PulseWatch.Api.Data;
 namespace PulseWatch.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260609053530_AddIndexUptimeChecksWebsiteCheckedAt")]
+    partial class AddIndexUptimeChecksWebsiteCheckedAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -291,7 +294,7 @@ namespace PulseWatch.Api.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("CheckIntervalSeconds")
+                    b.Property<int>("CheckIntervalMinutes")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
@@ -300,24 +303,9 @@ namespace PulseWatch.Api.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<bool?>("IsOnline")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("LastCheckedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<long?>("LastResponseTimeMs")
-                        .HasColumnType("bigint");
-
-                    b.Property<int?>("LastStatusCode")
-                        .HasColumnType("int");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("NextCheckAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("Url")
                         .IsRequired()
@@ -330,9 +318,6 @@ namespace PulseWatch.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("UserId");
-
-                    b.HasIndex("IsActive", "NextCheckAt")
-                        .HasDatabaseName("IX_Websites_IsActive_NextCheckAt");
 
                     b.ToTable("Websites");
                 });

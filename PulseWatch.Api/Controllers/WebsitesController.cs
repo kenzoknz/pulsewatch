@@ -38,7 +38,6 @@ public class WebsitesController : ControllerBase
         var userId = GetCurrentUserId();
         var query = _db.Websites
                     .Where(w => w.UserId == userId)
-                    .Include(w => w.UptimeChecks.OrderByDescending(c => c.CheckedAt).Take(1))
                     .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -74,9 +73,7 @@ public class WebsitesController : ControllerBase
     {
         var userId = GetCurrentUserId();
         var website = await _db.Websites
-            .Where(w => w.Id == id && w.UserId == userId)
-            .Include(w => w.UptimeChecks.OrderByDescending(c => c.CheckedAt).Take(1))
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
 
         if (website == null) return NotFound();
 
@@ -91,12 +88,16 @@ public class WebsitesController : ControllerBase
 
         var website = new Website
         {
-            UserId = userId,  
+            UserId = userId,
             Name = dto.Name,
             Url = dto.Url,
-            CheckIntervalMinutes = dto.CheckIntervalMinutes,
+            CheckIntervalSeconds = dto.CheckIntervalSeconds,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+
+            NextCheckAt = DateTime.UtcNow,
+            LastCheckedAt = null,
+            IsOnline = null
         };
 
 
@@ -232,8 +233,20 @@ public class WebsitesController : ControllerBase
 
         website.Name = dto.Name;
         website.Url = dto.Url;
-        website.CheckIntervalMinutes = dto.CheckIntervalMinutes;
         website.IsActive = dto.IsActive;
+
+        if (website.CheckIntervalSeconds != dto.CheckIntervalSeconds)
+        {
+            website.CheckIntervalSeconds = dto.CheckIntervalSeconds;
+
+            var baseTime = website.LastCheckedAt ?? DateTime.UtcNow;
+            website.NextCheckAt = baseTime.AddSeconds(dto.CheckIntervalSeconds);
+
+            if (website.NextCheckAt < DateTime.UtcNow)
+            {
+                website.NextCheckAt = DateTime.UtcNow;
+            }
+        }
 
         await _db.SaveChangesAsync();
 
@@ -265,6 +278,12 @@ public class WebsitesController : ControllerBase
         if (website == null) return NotFound();
 
         var result = await _checker.CheckWebsiteAsync(website);
+
+        website.IsOnline = result.IsOnline;
+        website.LastStatusCode = result.StatusCode;
+        website.LastResponseTimeMs = result.ResponseTimeMs;
+        website.LastCheckedAt = result.CheckedAt;
+        website.NextCheckAt = result.CheckedAt.AddSeconds(website.CheckIntervalSeconds);
 
         _db.UptimeChecks.Add(result);
         await _db.SaveChangesAsync();
@@ -316,9 +335,11 @@ public class WebsitesController : ControllerBase
                         ? new Uri(url.Trim()).Host
                         : url.Trim(),
                     Url = url.Trim(),
-                    CheckIntervalMinutes = dto.DefaultCheckIntervalMinutes,
+                    CheckIntervalSeconds = dto.DefaultCheckIntervalSeconds,
                     IsActive = true,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    NextCheckAt = DateTime.UtcNow,
+                    IsOnline = null
                 };
 
                 _db.Websites.Add(website);
@@ -484,16 +505,19 @@ public class WebsitesController : ControllerBase
 
     private static WebsiteResponseDto MapToDto(Website website)
     {
-        var lastCheck = website.UptimeChecks?.FirstOrDefault();
-
         return new WebsiteResponseDto
         {
             Id = website.Id,
             Name = website.Name,
             Url = website.Url,
-            CheckIntervalMinutes = website.CheckIntervalMinutes,
+            CheckIntervalSeconds = website.CheckIntervalSeconds,
             IsActive = website.IsActive,
-            CreatedAt = website.CreatedAt
+            CreatedAt = website.CreatedAt,
+            IsOnline = website.IsOnline,
+            LastStatusCode = website.LastStatusCode,
+            LastResponseTimeMs = website.LastResponseTimeMs,
+            LastCheckedAt = website.LastCheckedAt,
+            NextCheckAt = website.NextCheckAt
         };
     }
     private string GetCurrentUserId()

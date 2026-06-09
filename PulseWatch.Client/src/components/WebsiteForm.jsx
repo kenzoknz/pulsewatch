@@ -4,7 +4,7 @@ export default function WebsiteForm({ initialData, onSubmit, onCancel, isSubmitt
   const [formData, setFormData] = useState({
     name: '',
     url: '',
-    checkIntervalMinutes: 5,
+    checkIntervalSeconds: 300,
     isActive: true,
   });
 
@@ -47,9 +47,9 @@ export default function WebsiteForm({ initialData, onSubmit, onCancel, isSubmitt
       }
     }
 
-    const interval = parseInt(formData.checkIntervalMinutes, 10);
-    if (!interval || interval < 1 || interval > 1440) {
-      newErrors.checkIntervalMinutes = 'Interval must be between 1 and 1440 minutes';
+    const interval = parseInt(formData.checkIntervalSeconds, 10);
+    if (!interval || interval < 60 || interval > 86400) {
+      newErrors.checkIntervalSeconds = 'Interval must be between 60 and 86400 seconds';
     }
 
     setErrors(newErrors);
@@ -114,21 +114,21 @@ export default function WebsiteForm({ initialData, onSubmit, onCancel, isSubmitt
       </div>
 
       <div className="form-group">
-        <label htmlFor="checkInterval">Check Interval (minutes)</label>
+        <label htmlFor="checkInterval">Check Interval (seconds)</label>
         <input
           type="number"
           id="checkInterval"
-          name="checkIntervalMinutes"
-          value={formData.checkIntervalMinutes}
+          name="checkIntervalSeconds"
+          value={formData.checkIntervalSeconds}
           onChange={handleChange}
-          min={1}
-          max={1440}
+          min={60}
+          max={86400}
         />
-        {errors.checkIntervalMinutes && (
-          <div className="form-error">{errors.checkIntervalMinutes}</div>
+        {errors.checkIntervalSeconds && (
+          <div className="form-error">{errors.checkIntervalSeconds}</div>
         )}
         <small className="text-muted" style={{ marginTop: '4px', display: 'block' }}>
-          Between 1 and 1440 minutes
+          Between 60 and 86400 seconds
         </small>
       </div>
 
