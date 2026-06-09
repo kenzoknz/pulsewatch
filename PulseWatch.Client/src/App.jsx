@@ -1,22 +1,16 @@
 import './App.css';
+import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useState } from 'react';
+
+import { useAuth } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import MainLayout from './layouts/MainLayout';
 import DashboardPage from './pages/DashboardPage';
 import WebsitePage from './pages/WebsitePage';
 import WebsiteDetailPage from './pages/WebsiteDetailPage';
 import BulkAddWebsitesPage from './pages/BulkAddWebsitesPage';
-import {
-  RiDashboardLine,
-  RiGlobalLine,
-  RiRadarLine,
-  RiArrowLeftLine,
-  RiMoonLine,
-  RiRefreshLine,
-  RiSunLine,
-  RiArrowDownSLine,
-  RiArrowRightSLine,
-} from 'react-icons/ri';
-import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { useTheme } from './hooks/useTheme';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 
 function WebsiteDetailRoute({ refreshKey, onBack }) {
   const { websiteId } = useParams();
@@ -30,21 +24,10 @@ function WebsiteDetailRoute({ refreshKey, onBack }) {
   );
 }
 
-function App() {
+export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
-  const { theme, toggleTheme } = useTheme();
+  const { isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const isWebsitesRoute = /^\/websites/.test(location.pathname);
-  const [websitesExpanded, setWebsitesExpanded] = useState(isWebsitesRoute);
-
-  // Auto-expand when navigating to a websites route
-  useEffect(() => {
-    if (isWebsitesRoute) {
-      setWebsitesExpanded(true);
-    }
-  }, [isWebsitesRoute]);
 
   const triggerRefresh = () => {
     setRefreshKey(k => k + 1);
@@ -59,176 +42,81 @@ function App() {
     triggerRefresh();
   };
 
-  const navItems = [
-    { to: '/dashboard', label: 'Dashboard', Icon: RiDashboardLine },
-  ];
-
-  const isBulkAddView = location.pathname === '/websites/bulk-add';
-  const isDetailView = /^\/websites\/[^/]+/.test(location.pathname) && !isBulkAddView;
+  if (loading) {
+    return (
+        <div className="auth-loading">
+          <div className="loading-spinner"></div>
+          <p>Loading...</p>
+        </div>
+    );
+  }
 
   return (
-    <div className="app-shell">
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Sidebar */}
-        <aside className="sidebar">
-          <div className="logo">
-            <div className="logo-icon"><RiRadarLine size={22} /></div>
-            <span>PulseWatch</span>
-          </div>
+    <Routes>
+      {/* Public Auth Routes */}
+      <Route
+        path="/login"
+        element={
+          isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />
+        }
+      />
 
-          <nav className="nav">
-            {navItems.map(item => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-              >
-                <span className="nav-icon"><item.Icon size={18} /></span>
-                <span>{item.label}</span>
-              </NavLink>
-            ))}
+      {/* Protected Routes utilizing MainLayout */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <MainLayout triggerRefresh={triggerRefresh} />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="dashboard"
+          element={
+            <DashboardPage
+              key={refreshKey}
+              onViewWebsites={() => navigate('/websites')}
+            />
+          }
+        />
+        <Route
+          path="websites"
+          element={
+            <WebsitePage
+              key={refreshKey}
+              onViewDetail={handleViewDetail}
+              onRefresh={triggerRefresh}
+            />
+          }
+        />
+        <Route
+          path="websites/bulk-add"
+          element={
+            <BulkAddWebsitesPage
+              onCompleted={triggerRefresh}
+            />
+          }
+        />
+        <Route
+          path="websites/:websiteId"
+          element={
+            <WebsiteDetailRoute
+              refreshKey={refreshKey}
+              onBack={handleBackToWebsites}
+            />
+          }
+        />
+      </Route>
 
-            <div className={`nav-group ${websitesExpanded ? 'expanded' : ''}`}>
-              <button
-                className={`nav-group-title ${isWebsitesRoute ? 'active' : ''}`}
-                onClick={() => setWebsitesExpanded(prev => !prev)}
-              >
-                <span className="nav-icon"><RiGlobalLine size={18} /></span>
-                <span>Websites</span>
-                <span className="nav-group-arrow">
-                  {websitesExpanded ? <RiArrowDownSLine size={14} /> : <RiArrowRightSLine size={14} />}
-                </span>
-              </button>
-              {websitesExpanded && (
-                <>
-                  <NavLink
-                    to="/websites/bulk-add"
-                    className={({ isActive }) => `nav-item nav-subitem ${isActive ? 'active' : ''}`}
-                  >
-                    <span>Bulk Add</span>
-                  </NavLink>
-                  <NavLink
-                    to="/websites"
-                    className={({ isActive }) => `nav-item nav-subitem ${isActive ? 'active' : ''}`}
-                    end
-                  >
-                    <span>Manage Websites</span>
-                  </NavLink>
-                </>
-              )}
-            </div>
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <div className="main-content">
-          {/* Top Bar */}
-          <header className="topbar">
-            <div className="topbar-left">
-              {isDetailView && (
-                <button
-                  className="back-button"
-                  onClick={handleBackToWebsites}
-                  title="Back to websites"
-                >
-                  <RiArrowLeftLine size={18} />
-                </button>
-              )}
-              <div className="topbar-title">
-                {location.pathname.startsWith('/dashboard') && (
-                  <>
-                    <h2>Dashboard</h2>
-                    <span className="topbar-subtitle">System health overview</span>
-                  </>
-                )}
-                {location.pathname === '/websites' && (
-                  <>
-                    <h2>Manage Websites</h2>
-                    <span className="topbar-subtitle">Manage monitored endpoints</span>
-                  </>
-                )}
-                {isBulkAddView && (
-                  <>
-                    <h2>Bulk Add Websites</h2>
-                    <span className="topbar-subtitle">Add multiple monitored endpoints at once</span>
-                  </>
-                )}
-                {isDetailView && (
-                  <>
-                    <h2>Website Details</h2>
-                    <span className="topbar-subtitle">Performance & status monitoring</span>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="topbar-right">
-              <button
-                className="btn-refresh"
-                onClick={toggleTheme}
-                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              >
-                {theme === 'dark' ? <RiSunLine size={18} /> : <RiMoonLine size={18} />}
-              </button>
-              <button
-                className="btn-refresh"
-                onClick={triggerRefresh}
-                title="Refresh data"
-              >
-                <RiRefreshLine size={18} />
-              </button>
-            </div>
-          </header>
-
-          {/* Page Content */}
-          <div className="page">
-            <div className="page-container">
-              <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route
-                  path="/dashboard"
-                  element={(
-                    <DashboardPage
-                      key={refreshKey}
-                      onViewWebsites={() => navigate('/websites')}
-                    />
-                  )}
-                />
-                <Route
-                  path="/websites"
-                  element={(
-                    <WebsitePage
-                      key={refreshKey}
-                      onViewDetail={handleViewDetail}
-                      onRefresh={triggerRefresh}
-                    />
-                  )}
-                />
-                <Route
-                  path="/websites/bulk-add"
-                  element={(
-                    <BulkAddWebsitesPage
-                      onCompleted={triggerRefresh}
-                    />
-                  )}
-                />
-                <Route
-                  path="/websites/:websiteId"
-                  element={(
-                    <WebsiteDetailRoute
-                      refreshKey={refreshKey}
-                      onBack={handleBackToWebsites}
-                    />
-                  )}
-                />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      {/* Catch-all Route */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
-
-export default App;
