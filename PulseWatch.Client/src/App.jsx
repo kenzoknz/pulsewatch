@@ -13,6 +13,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
+import UserManagementPage from './pages/UserManagementPage';
 import AdminRoute from './components/AdminRoute';
 
 function WebsiteDetailRoute({ refreshKey, onBack }) {
@@ -122,6 +123,14 @@ export default function App() {
           element={
             <AdminRoute>
               <AdminPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="users"
+          element={
+            <AdminRoute>
+              <UserManagementPage />
             </AdminRoute>
           }
         />

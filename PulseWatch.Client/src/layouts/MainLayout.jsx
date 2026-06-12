@@ -104,11 +104,11 @@ export default function MainLayout({ triggerRefresh }) {
 
             {isAdmin && (
               <NavLink
-                to="/admin"
+                to="/users"
                 className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
               >
                 <span className="nav-icon"><RiShieldUserLine size={18} /></span>
-                <span>Admin</span>
+                <span>Users</span>
               </NavLink>
             )}
           </nav>
@@ -173,6 +173,12 @@ export default function MainLayout({ triggerRefresh }) {
                   <>
                     <h2>Website Details</h2>
                     <span className="topbar-subtitle">Performance & status monitoring</span>
+                  </>
+                )}
+                {location.pathname === '/users' && (
+                  <>
+                    <h2>User Management</h2>
+                    <span className="topbar-subtitle">Create, edit, and manage users</span>
                   </>
                 )}
               </div>
