@@ -61,7 +61,20 @@ export const getWebsiteChecks = (id, page = 1, pageSize = 20) =>
   api.get(`/websites/${id}/checks`, {
     params: { page, pageSize },
   });
-export const runWebsiteCheck = (id) => api.post(`/websites/${id}/checks/run`);
+export const runWebsiteCheck = (id) => api.post(`/websites/${id}/check`);
 export const getDowntimeEvents = (id) => api.get(`/websites/${id}/downtime-events`);
+
+// Profile
+export const getProfile = () => api.get('/profile');
+export const updateProfile = (data) => api.put('/profile', data);
+export const changePassword = (data) => api.post('/profile/change-password', data);
+
+// Admin
+export const getAdminStats = () => api.get('/admin/stats');
+export const getAdminUsers = () => api.get('/admin/users');
+export const toggleUserActive = (userId, isActive) => api.patch(`/admin/users/${userId}/toggle-active`, { isActive });
+export const createAdminUser = (data) => api.post('/admin/users', data);
+export const updateAdminUser = (userId, data) => api.put(`/admin/users/${userId}`, data);
+export const deleteAdminUser = (userId) => api.delete(`/admin/users/${userId}`);
 
 export default api;

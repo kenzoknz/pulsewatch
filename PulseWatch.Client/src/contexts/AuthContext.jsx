@@ -81,6 +81,15 @@ export function AuthProvider({ children }) {
         setUser(null);
     }, []);
 
+    const refreshUser = useCallback(async () => {
+        try {
+            const response = await authApi.getMe();
+            setUser(response.data);
+        } catch {
+            // Ignore
+        }
+    }, []);
+
     const isAuthenticated = !!token && !!user;
 
     const value = {
@@ -91,6 +100,7 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
+        refreshUser,
     };
 
     return (

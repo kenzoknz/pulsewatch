@@ -11,6 +11,10 @@ import WebsiteDetailPage from './pages/WebsiteDetailPage';
 import BulkAddWebsitesPage from './pages/BulkAddWebsitesPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ProfilePage from './pages/ProfilePage';
+import AdminPage from './pages/AdminPage';
+import UserManagementPage from './pages/UserManagementPage';
+import AdminRoute from './components/AdminRoute';
 
 function WebsiteDetailRoute({ refreshKey, onBack }) {
   const { websiteId } = useParams();
@@ -111,6 +115,23 @@ export default function App() {
               refreshKey={refreshKey}
               onBack={handleBackToWebsites}
             />
+          }
+        />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route
+          path="admin"
+          element={
+            <AdminRoute>
+              <AdminPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="users"
+          element={
+            <AdminRoute>
+              <UserManagementPage />
+            </AdminRoute>
           }
         />
       </Route>

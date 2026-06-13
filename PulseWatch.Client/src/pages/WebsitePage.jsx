@@ -24,7 +24,12 @@ import {
   RiCloseLine,
 } from 'react-icons/ri';
 
+import { useAuth } from '../contexts/AuthContext';
+
 export default function WebsitePage({ onViewDetail, onRefresh }) {
+  const { user } = useAuth();
+  const isAdmin = user?.roles?.includes('Admin');
+  
   const [searchParams, setSearchParams] = useSearchParams();
   const [websites, setWebsites] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -429,6 +434,7 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
       {/* Website Table */}
       <WebsiteTable
         websites={filteredWebsites}
+        isAdmin={isAdmin}
         onView={onViewDetail}
         onEdit={handleEditClick}
         onDelete={handleDelete}
