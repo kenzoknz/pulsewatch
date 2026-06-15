@@ -23,4 +23,5 @@ public class Website
     public long? LastResponseTimeMs { get; set; }
 
     public List<UptimeCheck> UptimeChecks { get; set; } = new();
+    public DateTime? LastDeepCheckAt { get; set; }
 }

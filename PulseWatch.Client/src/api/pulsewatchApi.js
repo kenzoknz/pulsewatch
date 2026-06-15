@@ -63,5 +63,6 @@ export const getWebsiteChecks = (id, page = 1, pageSize = 20) =>
   });
 export const runWebsiteCheck = (id) => api.post(`/websites/${id}/checks/run`);
 export const getDowntimeEvents = (id) => api.get(`/websites/${id}/downtime-events`);
+export const runDeepCheck = (id) => api.post(`/websites/${id}/deep-check`);
 
 export default api;

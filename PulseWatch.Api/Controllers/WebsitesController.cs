@@ -17,12 +17,14 @@ public class WebsitesController : ControllerBase
     private readonly AppDbContext _db;
     private readonly UptimeCheckerService _checker;
     private readonly ILogger<WebsitesController> _logger;
+    private readonly IDeepCheckService _deepCheck;
 
-    public WebsitesController(AppDbContext db, UptimeCheckerService checker, ILogger<WebsitesController> logger)
+    public WebsitesController(AppDbContext db, UptimeCheckerService checker, ILogger<WebsitesController> logger, IDeepCheckService deepCheck)
     {
         _db = db;
         _checker = checker;
         _logger = logger;
+        _deepCheck = deepCheck;
     }
 
     // GET /api/websites (paged)
@@ -501,6 +503,37 @@ public class WebsitesController : ControllerBase
             .ExecuteDeleteAsync();
 
         return Ok(new DeleteAllResponseDto { DeletedCount = deletedCount });
+    }
+
+    // POST /api/websites/{id}/deep-check
+    [HttpPost("{id:int}/deep-check")]
+    public async Task<IActionResult> RunDeepCheck(int id, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+
+        var website = await _db.Websites
+            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId, cancellationToken);
+
+        if (website == null)
+            return NotFound();
+
+        const int cooldownMinutes = 2;
+        if (website.LastDeepCheckAt.HasValue)
+        {
+            var elapsed = DateTime.UtcNow - website.LastDeepCheckAt.Value;
+            if (elapsed.TotalMinutes < cooldownMinutes)
+            {
+                var remaining = Math.Ceiling(cooldownMinutes - elapsed.TotalMinutes);
+                return StatusCode(429, new { message = $"Vui lòng chờ {remaining} phút để thử lại." });
+            }
+        }
+
+        var result = await _deepCheck.RunCheckAsync(website.Url, cancellationToken);
+
+        website.LastDeepCheckAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Ok(result);
     }
 
     private static WebsiteResponseDto MapToDto(Website website)

@@ -5,6 +5,7 @@ import {
   getWebsiteChecks,
   getDowntimeEvents,
   updateWebsite,
+  runDeepCheck,
 } from '../api/pulsewatchApi';
 import CheckHistoryTable from '../components/CheckHistoryTable';
 import {
@@ -43,6 +44,9 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
   const [checksLoading, setChecksLoading] = useState(false);
   const [error, setError] = useState(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const [deepCheckLoading, setDeepCheckLoading] = useState(false);
+  const [deepCheckResult, setDeepCheckResult] = useState(null);
+  const [deepCheckError, setDeepCheckError] = useState(null);
 
   useEffect(() => {
     fetchAllData();
@@ -102,6 +106,24 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
       alert('Failed to update website status.');
     } finally {
       setTogglingStatus(false);
+    }
+  };
+
+  const handleDeepCheck = async () => {
+    try {
+      setDeepCheckLoading(true);
+      setDeepCheckError(null);
+      setDeepCheckResult(null);
+      const res = await runDeepCheck(websiteId);
+      setDeepCheckResult(res.data);
+    } catch (err) {
+      if (err.response?.status === 429) {
+        setDeepCheckError(err.response.data?.message || 'Vui lòng chờ trước khi thử lại.');
+      } else {
+        setDeepCheckError('Deep Check thất bại. Vui lòng thử lại.');
+      }
+    } finally {
+      setDeepCheckLoading(false);
     }
   };
 
@@ -184,6 +206,94 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
           <span className="status-dot pulse" />
           {currentStatus ? 'Online' : currentStatus === false ? 'Offline' : 'Unknown'}
         </span>
+      </div>
+
+      {/* Deep Check Panel */}
+      <div className="deep-check-panel" style={{
+        background: 'var(--surface-elevated)',
+        border: '1px solid var(--border)',
+        borderRadius: '12px',
+        padding: '20px 24px',
+        marginBottom: '24px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: deepCheckResult || deepCheckError ? '16px' : '0' }}>
+          <div>
+            <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600 }}>🔍 Deep Check (Browser)</h4>
+            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '12px' }}>
+              Chạy kiểm tra thực bằng trình duyệt headless Chromium · Cooldown 2 phút
+            </p>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={handleDeepCheck}
+            disabled={deepCheckLoading}
+            style={{ minWidth: '160px' }}
+          >
+            {deepCheckLoading ? (
+              <><span className="loading-spinner" style={{ width: '14px', height: '14px', marginRight: '8px', display: 'inline-block', verticalAlign: 'middle' }} />Đang kiểm tra...</>
+            ) : 'Chạy Deep Check'}
+          </button>
+        </div>
+
+        {deepCheckError && (
+          <div style={{
+            marginTop: '12px',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            background: 'rgba(239,68,68,0.1)',
+            color: 'var(--danger)',
+            fontSize: '13px',
+          }}>
+            ⚠️ {deepCheckError}
+          </div>
+        )}
+
+        {deepCheckResult && (
+          <div style={{ marginTop: '12px' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
+              <span style={{
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: deepCheckResult.isOnline ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                color: deepCheckResult.isOnline ? 'var(--success)' : 'var(--danger)',
+              }}>
+                {deepCheckResult.isOnline ? '✓ Online' : '✗ Offline'}
+              </span>
+              {deepCheckResult.responseTimeMs > 0 && (
+                <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', background: 'var(--surface)', color: 'var(--text-secondary)' }}>
+                  ⏱ {deepCheckResult.responseTimeMs} ms
+                </span>
+              )}
+              {deepCheckResult.pageTitle && (
+                <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', background: 'var(--surface)', color: 'var(--text-secondary)', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  📄 {deepCheckResult.pageTitle}
+                </span>
+              )}
+            </div>
+
+            {deepCheckResult.errorMessage && (
+              <p style={{ color: 'var(--danger)', fontSize: '13px', margin: '0 0 12px' }}>⚠️ {deepCheckResult.errorMessage}</p>
+            )}
+
+            {deepCheckResult.screenshotBase64 && (
+              <div style={{ marginTop: '8px' }}>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>Ảnh chụp màn hình:</p>
+                <img
+                  src={`data:image/png;base64,${deepCheckResult.screenshotBase64}`}
+                  alt="Deep Check Screenshot"
+                  style={{
+                    maxWidth: '100%',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Stats Grid */}
