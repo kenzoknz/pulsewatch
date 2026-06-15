@@ -111,6 +111,7 @@ builder.Services.AddCors(options =>
 builder.Services.Configure<JwtOptions>(
 builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddSingleton<IDeepCheckService, DeepCheckService>();
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
