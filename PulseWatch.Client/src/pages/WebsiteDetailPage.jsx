@@ -118,9 +118,9 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
       setDeepCheckResult(res.data);
     } catch (err) {
       if (err.response?.status === 429) {
-        setDeepCheckError(err.response.data?.message || 'Vui lòng chờ trước khi thử lại.');
+        setDeepCheckError(err.response.data?.message || 'Please wait before trying again.');
       } else {
-        setDeepCheckError('Deep Check thất bại. Vui lòng thử lại.');
+        setDeepCheckError('Deep Check failed. Please try again.');
       }
     } finally {
       setDeepCheckLoading(false);
@@ -218,9 +218,9 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: deepCheckResult || deepCheckError ? '16px' : '0' }}>
           <div>
-            <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600 }}>🔍 Deep Check (Browser)</h4>
+            <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600 }}>Deep Check (Browser)</h4>
             <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '12px' }}>
-              Chạy kiểm tra thực bằng trình duyệt headless Chromium · Cooldown 2 phút
+              Runs a real browser check using headless Chromium &middot; 2-minute cooldown
             </p>
           </div>
           <button
@@ -230,8 +230,8 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
             style={{ minWidth: '160px' }}
           >
             {deepCheckLoading ? (
-              <><span className="loading-spinner" style={{ width: '14px', height: '14px', marginRight: '8px', display: 'inline-block', verticalAlign: 'middle' }} />Đang kiểm tra...</>
-            ) : 'Chạy Deep Check'}
+              <><span className="loading-spinner" style={{ width: '14px', height: '14px', marginRight: '8px', display: 'inline-block', verticalAlign: 'middle' }} />Checking...</>
+            ) : 'Run Deep Check'}
           </button>
         </div>
 
@@ -244,7 +244,7 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
             color: 'var(--danger)',
             fontSize: '13px',
           }}>
-            ⚠️ {deepCheckError}
+            {deepCheckError}
           </div>
         )}
 
@@ -259,27 +259,27 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
                 background: deepCheckResult.isOnline ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
                 color: deepCheckResult.isOnline ? 'var(--success)' : 'var(--danger)',
               }}>
-                {deepCheckResult.isOnline ? '✓ Online' : '✗ Offline'}
+                {deepCheckResult.isOnline ? 'Online' : 'Offline'}
               </span>
               {deepCheckResult.responseTimeMs > 0 && (
                 <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', background: 'var(--surface)', color: 'var(--text-secondary)' }}>
-                  ⏱ {deepCheckResult.responseTimeMs} ms
+                  {deepCheckResult.responseTimeMs} ms
                 </span>
               )}
               {deepCheckResult.pageTitle && (
                 <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', background: 'var(--surface)', color: 'var(--text-secondary)', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  📄 {deepCheckResult.pageTitle}
+                  {deepCheckResult.pageTitle}
                 </span>
               )}
             </div>
 
             {deepCheckResult.errorMessage && (
-              <p style={{ color: 'var(--danger)', fontSize: '13px', margin: '0 0 12px' }}>⚠️ {deepCheckResult.errorMessage}</p>
+              <p style={{ color: 'var(--danger)', fontSize: '13px', margin: '0 0 12px' }}>{deepCheckResult.errorMessage}</p>
             )}
 
             {deepCheckResult.screenshotBase64 && (
               <div style={{ marginTop: '8px' }}>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>Ảnh chụp màn hình:</p>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>Screenshot:</p>
                 <img
                   src={`data:image/png;base64,${deepCheckResult.screenshotBase64}`}
                   alt="Deep Check Screenshot"
