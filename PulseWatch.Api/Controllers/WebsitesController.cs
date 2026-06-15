@@ -524,7 +524,7 @@ public class WebsitesController : ControllerBase
             if (elapsed.TotalMinutes < cooldownMinutes)
             {
                 var remaining = Math.Ceiling(cooldownMinutes - elapsed.TotalMinutes);
-                return StatusCode(429, new { message = $"Vui lòng chờ {remaining} phút để thử lại." });
+                return StatusCode(429, new { message = $"Please wait {remaining} minutes to try again." });
             }
         }
 
