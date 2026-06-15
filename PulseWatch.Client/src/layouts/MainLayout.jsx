@@ -13,6 +13,8 @@ import {
   RiArrowDownSLine,
   RiArrowRightSLine,
   RiLogoutBoxLine,
+  RiUserLine,
+  RiShieldUserLine,
 } from 'react-icons/ri';
 
 export default function MainLayout({ triggerRefresh }) {
@@ -30,8 +32,11 @@ export default function MainLayout({ triggerRefresh }) {
     }
   }, [isWebsitesRoute]);
 
+  const isAdmin = user?.roles?.includes('Admin');
+
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', Icon: RiDashboardLine },
+    { to: '/profile', label: 'Profile', Icon: RiUserLine },
   ];
 
   const isBulkAddView = location.pathname === '/websites/bulk-add';
@@ -96,6 +101,16 @@ export default function MainLayout({ triggerRefresh }) {
                 </>
               )}
             </div>
+
+            {isAdmin && (
+              <NavLink
+                to="/users"
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              >
+                <span className="nav-icon"><RiShieldUserLine size={18} /></span>
+                <span>Users</span>
+              </NavLink>
+            )}
           </nav>
 
           {/* User Section at Footer */}
@@ -158,6 +173,12 @@ export default function MainLayout({ triggerRefresh }) {
                   <>
                     <h2>Website Details</h2>
                     <span className="topbar-subtitle">Performance & status monitoring</span>
+                  </>
+                )}
+                {location.pathname === '/users' && (
+                  <>
+                    <h2>User Management</h2>
+                    <span className="topbar-subtitle">Create, edit, and manage users</span>
                   </>
                 )}
               </div>

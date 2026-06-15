@@ -19,6 +19,7 @@ const formatDate = (dateString) => {
 
 export default function WebsiteTable({
   websites,
+  isAdmin = false,
   onView,
   onEdit,
   onDelete,
@@ -61,6 +62,7 @@ export default function WebsiteTable({
             <th>Name</th>
             <th>URL</th>
             <th>Interval</th>
+            {isAdmin && <th>Owner</th>}
             <th>Created</th>
             <th>Actions</th>
           </tr>
@@ -108,6 +110,12 @@ export default function WebsiteTable({
                 </a>
               </td>
               <td data-label="Interval">{site.checkIntervalSeconds} sec</td>
+              {isAdmin && (
+                <td data-label="Owner">
+                  <div>{site.ownerUsername}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{site.ownerEmail}</div>
+                </td>
+              )}
               <td data-label="Created">{formatDate(site.createdAt)}</td>
               <td data-label="Actions">
                 <div className="flex gap-2" style={{ justifyContent: 'flex-end' }}>

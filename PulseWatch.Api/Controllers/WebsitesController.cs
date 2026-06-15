@@ -38,9 +38,17 @@ public class WebsitesController : ControllerBase
         if (pageSize < 1) pageSize = 10;
         if (pageSize > 100) pageSize = 100;
         var userId = GetCurrentUserId();
-        var query = _db.Websites
-                    .Where(w => w.UserId == userId)
-                    .AsQueryable();
+        var isAdmin = User.IsInRole(AppRoles.Admin);
+        
+        var query = _db.Websites.AsQueryable();
+        if (isAdmin)
+        {
+            query = query.Include(w => w.User);
+        }
+        else
+        {
+            query = query.Where(w => w.UserId == userId);
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -73,9 +81,7 @@ public class WebsitesController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<WebsiteResponseDto>> GetWebsite(int id)
     {
-        var userId = GetCurrentUserId();
-        var website = await _db.Websites
-            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
+        var website = await GetWebsiteAuthorizedAsync(id);
 
         if (website == null) return NotFound();
 
@@ -113,9 +119,7 @@ public class WebsitesController : ControllerBase
     [HttpGet("{id:int}/stats")]
     public async Task<ActionResult<WebsiteStatsDto>> GetWebsiteStats(int id)
     {
-        var userId = GetCurrentUserId();
-        var website = await _db.Websites
-            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
+        var website = await GetWebsiteAuthorizedAsync(id);
         if (website == null) return NotFound();
 
         var checks = await _db.UptimeChecks
@@ -152,9 +156,7 @@ public class WebsitesController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        var userId = GetCurrentUserId();
-        var website = await _db.Websites
-            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
+        var website = await GetWebsiteAuthorizedAsync(id);
         if (website == null) return NotFound();
 
         if (page < 1) page = 1;
@@ -198,9 +200,7 @@ public class WebsitesController : ControllerBase
     [HttpGet("{id:int}/downtime-events")]
     public async Task<ActionResult<List<DowntimeEventResponseDto>>> GetDowntimeEvents(int id)
     {
-        var userId = GetCurrentUserId();
-        var website = await _db.Websites
-            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
+        var website = await GetWebsiteAuthorizedAsync(id);
         if (website == null) return NotFound();
 
         var events = await _db.DowntimeEvents
@@ -226,10 +226,7 @@ public class WebsitesController : ControllerBase
     [HttpPut("{id:int}")]
     public async Task<ActionResult<WebsiteResponseDto>> UpdateWebsite(int id, [FromBody] UpdateWebsiteDto dto)
     {
-        var userId = GetCurrentUserId();
-
-        var website = await _db.Websites
-        .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
+        var website = await GetWebsiteAuthorizedAsync(id);
 
         if (website == null) return NotFound();
 
@@ -259,9 +256,7 @@ public class WebsitesController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteWebsite(int id)
     {
-        var userId = GetCurrentUserId();
-        var website = await _db.Websites
-            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
+        var website = await GetWebsiteAuthorizedAsync(id);
         if (website == null) return NotFound();
 
         _db.Websites.Remove(website);
@@ -274,9 +269,7 @@ public class WebsitesController : ControllerBase
     [HttpPost("{id:int}/check")]
     public async Task<ActionResult<UptimeCheckResponseDto>> RunCheck(int id)
     {
-        var userId = GetCurrentUserId();
-        var website = await _db.Websites
-            .FirstOrDefaultAsync(w => w.Id == id && w.UserId == userId);
+        var website = await GetWebsiteAuthorizedAsync(id);
         if (website == null) return NotFound();
 
         var result = await _checker.CheckWebsiteAsync(website);
@@ -550,9 +543,20 @@ public class WebsitesController : ControllerBase
             LastStatusCode = website.LastStatusCode,
             LastResponseTimeMs = website.LastResponseTimeMs,
             LastCheckedAt = website.LastCheckedAt,
-            NextCheckAt = website.NextCheckAt
+            NextCheckAt = website.NextCheckAt,
+            OwnerEmail = website.User?.Email ?? string.Empty,
+            OwnerUsername = website.User?.UserName ?? string.Empty
         };
     }
+    
+    private async Task<Website?> GetWebsiteAuthorizedAsync(int id)
+    {
+        var userId = GetCurrentUserId();
+        var isAdmin = User.IsInRole(AppRoles.Admin);
+        var query = _db.Websites.Include(w => w.User).AsQueryable();
+        return await query.FirstOrDefaultAsync(w => w.Id == id && (isAdmin || w.UserId == userId));
+    }
+
     private string GetCurrentUserId()
     {
         return User.FindFirstValue(ClaimTypes.NameIdentifier)
