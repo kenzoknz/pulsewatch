@@ -523,7 +523,47 @@ public class WebsitesController : ControllerBase
 
         var result = await _deepCheck.RunCheckAsync(website.Url, cancellationToken);
 
-        website.LastDeepCheckAt = DateTime.UtcNow;
+        var wasOnline = website.IsOnline;
+        var checkTime = DateTime.UtcNow;
+
+        website.IsOnline = result.IsOnline;
+        website.LastStatusCode = result.StatusCode;
+        website.LastResponseTimeMs = result.ResponseTimeMs;
+        website.LastCheckedAt = checkTime;
+        website.NextCheckAt = checkTime.AddSeconds(website.CheckIntervalSeconds);
+        website.LastDeepCheckAt = checkTime;
+
+        var uptimeCheck = new UptimeCheck
+        {
+            WebsiteId = website.Id,
+            IsOnline = result.IsOnline,
+            StatusCode = result.StatusCode,
+            ResponseTimeMs = result.ResponseTimeMs,
+            ErrorMessage = result.ErrorMessage,
+            CheckedAt = checkTime
+        };
+
+        _db.UptimeChecks.Add(uptimeCheck);
+
+        if (wasOnline != false && !result.IsOnline)
+        {
+            _db.DowntimeEvents.Add(new DowntimeEvent
+            {
+                WebsiteId = website.Id,
+                StartedAt = checkTime,
+                Reason = result.ErrorMessage ?? $"Deep Check status code: {result.StatusCode}"
+            });
+        }
+        else if (wasOnline == false && result.IsOnline)
+        {
+            var openDowntime = await _db.DowntimeEvents
+                .FirstOrDefaultAsync(d => d.WebsiteId == website.Id && d.EndedAt == null, cancellationToken);
+            if (openDowntime != null)
+            {
+                openDowntime.EndedAt = checkTime;
+            }
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
 
         return Ok(result);

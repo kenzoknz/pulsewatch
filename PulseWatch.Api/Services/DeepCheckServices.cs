@@ -56,7 +56,7 @@ public class DeepCheckService : IDeepCheckService, IAsyncDisposable
 
                 var response = await page.GotoAsync(url, new PageGotoOptions
                 {
-                    WaitUntil = WaitUntilState.NetworkIdle,
+                    WaitUntil = WaitUntilState.DOMContentLoaded,
                     Timeout = (float)_timeout.TotalMilliseconds
                 });
 
@@ -65,6 +65,7 @@ public class DeepCheckService : IDeepCheckService, IAsyncDisposable
                 result.IsOnline = response != null && response.Ok;
                 result.ResponseTimeMs = sw.ElapsedMilliseconds;
                 result.PageTitle = await page.TitleAsync();
+                result.StatusCode = response?.Status;
 
                 var screenshotBytes = await page.ScreenshotAsync(new PageScreenshotOptions
                 {
@@ -83,14 +84,14 @@ public class DeepCheckService : IDeepCheckService, IAsyncDisposable
             sw.Stop();
             result.IsOnline = false;
             result.ResponseTimeMs = sw.ElapsedMilliseconds;
-            result.ErrorMessage = "Timeout: Trang không tải xong trong thời gian cho phép.";
+            result.ErrorMessage = "Timeout exceeded the time limit for loading page.";
         }
         catch (Exception ex)
         {
             sw.Stop();
             result.IsOnline = false;
             result.ResponseTimeMs = sw.ElapsedMilliseconds;
-            result.ErrorMessage = $"Lỗi: {ex.Message}";
+            result.ErrorMessage = $"Error: {ex.Message}";
         }
         finally
         {
