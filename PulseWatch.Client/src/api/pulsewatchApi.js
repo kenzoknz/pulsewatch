@@ -78,4 +78,12 @@ export const createAdminUser = (data) => api.post('/admin/users', data);
 export const updateAdminUser = (userId, data) => api.put(`/admin/users/${userId}`, data);
 export const deleteAdminUser = (userId) => api.delete(`/admin/users/${userId}`);
 
+// Notifications
+export const getNotifications = (page = 1, pageSize = 10) =>
+  api.get("/notifications", { params: { page, pageSize } });
+export const getUnreadCount = () => api.get("/notifications/unread-count");
+export const markNotificationAsRead = (id) => api.put(`/notifications/${id}/read`);
+export const markAllNotificationsAsRead = () => api.put("/notifications/read-all");
+export const clearAllNotifications = () => api.delete("/notifications/clear-all");
+
 export default api;

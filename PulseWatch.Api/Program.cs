@@ -2,6 +2,7 @@ using Microsoft.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using PulseWatch.Api.Data;
 using PulseWatch.Api.Services;
+using PulseWatch.Api.Hubs;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
@@ -78,7 +79,22 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
 
         ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero 
+        ClockSkew = TimeSpan.Zero
+    };
+
+    // Allow SignalR to read JWT from query string
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -95,6 +111,9 @@ builder.Services.AddHttpClient<UptimeCheckerService>((serviceProvider, httpClien
     httpClient.Timeout = TimeSpan.FromSeconds(options.HttpTimeoutSeconds);
 });
 builder.Services.AddHostedService<UptimeBackgroundService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddSignalR();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactClient", policy =>
@@ -105,7 +124,8 @@ builder.Services.AddCors(options =>
                 return uri.Host == "localhost" || uri.Host == "127.0.0.1";
             })
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 builder.Services.Configure<JwtOptions>(
@@ -151,6 +171,7 @@ app.MapGet("/weatherforecast", () =>
 })
 .WithName("GetWeatherForecast");
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 // Seed roles and admin user
 await SeedData.InitializeAsync(app.Services);

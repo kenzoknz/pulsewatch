@@ -9,6 +9,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Website> Websites => Set<Website>();
     public DbSet<UptimeCheck> UptimeChecks => Set<UptimeCheck>();
     public DbSet<DowntimeEvent> DowntimeEvents => Set<DowntimeEvent>();
+    public DbSet<InAppNotification> InAppNotifications => Set<InAppNotification>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -30,6 +31,21 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<UptimeCheck>(entity =>
         {
             entity.HasIndex(c => new { c.WebsiteId, c.CheckedAt });
+        });
+
+        builder.Entity<InAppNotification>(entity =>
+        {
+            entity.HasOne(n => n.User)
+                  .WithMany()
+                  .HasForeignKey(n => n.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(n => n.Website)
+                  .WithMany()
+                  .HasForeignKey(n => n.WebsiteId)
+                  .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasIndex(n => new { n.UserId, n.IsRead });
         });
     }
 }

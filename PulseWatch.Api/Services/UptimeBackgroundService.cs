@@ -42,6 +42,7 @@ public class UptimeBackgroundService : BackgroundService
             using var scope = _scopefactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var checker = scope.ServiceProvider.GetRequiredService<UptimeCheckerService>();
+            var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
 
             var websitesToCheck = await context.Websites
                 .Include(w => w.User)
@@ -71,6 +72,9 @@ public class UptimeBackgroundService : BackgroundService
                                 "[DOWN] {Name} ({Url}) went OFFLINE. StatusCode={StatusCode}, Error={Error}",
                                 website.Name, website.Url, check.StatusCode, check.ErrorMessage
                             );
+
+                            await notificationService.SendUptimeAlertAsync(
+                                website, false, check.ErrorMessage ?? $"Status code: {check.StatusCode}");
                         }
                         else if (wasOnline == false && check.IsOnline)
                         {
@@ -89,6 +93,9 @@ public class UptimeBackgroundService : BackgroundService
                                 "[UP] {Name} ({Url}) is back ONLINE after downtime.",
                                 website.Name, website.Url
                             );
+
+                            await notificationService.SendUptimeAlertAsync(
+                                website, true, "All checks passed.");
                         }
 
                         website.IsOnline = check.IsOnline;

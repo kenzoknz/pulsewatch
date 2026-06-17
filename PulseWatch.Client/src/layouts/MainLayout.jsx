@@ -16,6 +16,7 @@ import {
   RiUserLine,
   RiShieldUserLine,
 } from 'react-icons/ri';
+import NotificationCenter from '../components/NotificationCenter';
 
 export default function MainLayout({ triggerRefresh }) {
   const { user, logout } = useAuth();
@@ -184,6 +185,7 @@ export default function MainLayout({ triggerRefresh }) {
               </div>
             </div>
             <div className="topbar-right">
+              <NotificationCenter />
               <button
                 className="btn-refresh"
                 onClick={toggleTheme}
