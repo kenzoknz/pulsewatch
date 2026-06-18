@@ -44,7 +44,8 @@ public class ProfileController : ControllerBase
             Username = user.UserName!,
             Email = user.Email!,
             CreatedAt = user.CreatedAt,
-            TotalWebsites = totalWebsites
+            TotalWebsites = totalWebsites,
+            EmailNotificationsEnabled = user.EmailNotificationsEnabled
         });
     }
 
@@ -76,8 +77,22 @@ public class ProfileController : ControllerBase
             Username = user.UserName!,
             Email = user.Email!,
             CreatedAt = user.CreatedAt,
-            TotalWebsites = totalWebsites
+            TotalWebsites = totalWebsites,
+            EmailNotificationsEnabled = user.EmailNotificationsEnabled
         });
+    }
+
+    [HttpPut("email-settings")]
+    public async Task<IActionResult> UpdateEmailSettings([FromBody] UpdateEmailSettingsDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        user.EmailNotificationsEnabled = dto.EmailNotificationsEnabled;
+        await _userManager.UpdateAsync(user);
+
+        return Ok(new { message = "Email notification settings updated." });
     }
 
     [HttpPost("change-password")]

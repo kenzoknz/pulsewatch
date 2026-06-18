@@ -69,6 +69,8 @@ export const runDeepCheck = (id) => api.post(`/websites/${id}/deep-check`);
 export const getProfile = () => api.get('/profile');
 export const updateProfile = (data) => api.put('/profile', data);
 export const changePassword = (data) => api.post('/profile/change-password', data);
+export const updateEmailSettings = (data) => api.put('/profile/email-settings', data);
+
 
 // Admin
 export const getAdminStats = () => api.get('/admin/stats');
