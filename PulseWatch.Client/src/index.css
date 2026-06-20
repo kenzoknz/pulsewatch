@@ -1328,7 +1328,7 @@ button:focus-visible,
 .profile-sections {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 28px;
 }
 
 .profile-card {
@@ -1347,7 +1347,7 @@ button:focus-visible,
 .profile-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .input-disabled {
@@ -1365,6 +1365,8 @@ button:focus-visible,
   padding: 10px 14px;
   border-radius: 8px;
   font-size: 13px;
+  margin-top: 4px;
+  margin-bottom: 4px;
 }
 
 .form-message--success {
@@ -1933,4 +1935,62 @@ button:focus-visible,
   font-size: 14px;
   color: var(--text);
   line-height: 1.6;
+}
+
+.form-group-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-group-toggle > label:first-child {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--border);
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--primary);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(24px);
 }

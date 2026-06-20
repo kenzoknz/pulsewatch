@@ -5,16 +5,17 @@
   background: linear-gradient(135deg, var(--surface-elevated) 0%, var(--surface) 100%);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: 28px;
   box-shadow: var(--shadow-md);
-  margin-bottom: 20px;
+  margin-top: 28px;
+  margin-bottom: 28px;
 }
 
 .health-overview-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .health-overview-title {
@@ -33,7 +34,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 @media (max-width: 768px) {
@@ -70,7 +71,7 @@
 .quick-actions {
   display: flex;
   gap: 12px;
-  margin-top: 20px;
+  margin-top: 24px;
   flex-wrap: wrap;
 }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getProfile, updateProfile, changePassword } from '../api/pulsewatchApi';
+import { getProfile, updateProfile, changePassword, updateEmailSettings } from '../api/pulsewatchApi';
 import { useAuth } from '../contexts/AuthContext';
+import { RiMailLine } from 'react-icons/ri';
 
 export default function ProfilePage() {
   const { refreshUser } = useAuth();
@@ -15,12 +16,16 @@ export default function ProfilePage() {
   const [pwMsg, setPwMsg] = useState({ text: '', isError: false });
   const [pwSaving, setPwSaving] = useState(false);
 
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
+  const [emailMsg, setEmailMsg] = useState({ text: '', isError: false });
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const res = await getProfile();
         setProfile(res.data);
         setProfileForm({ username: res.data.username });
+        setEmailNotificationsEnabled(res.data.emailNotificationsEnabled);
       } catch {
         setProfileMsg({ text: 'Failed to load profile.', isError: true });
       } finally {
@@ -72,6 +77,15 @@ export default function ProfilePage() {
       setPwMsg({ text: msg, isError: true });
     } finally {
       setPwSaving(false);
+    }
+  };
+
+  const handleEmailSettingsSave = async () => {
+    try {
+      await updateEmailSettings({ emailNotificationsEnabled });
+      setEmailMsg({ text: 'Email settings updated successfully.', isError: false });
+    } catch {
+      setEmailMsg({ text: 'Failed to update email settings. Please try again.', isError: true });
     }
   };
 
@@ -198,6 +212,39 @@ export default function ProfilePage() {
               {pwSaving ? 'Changing...' : 'Change Password'}
             </button>
           </form>
+        </div>
+
+        <div className="profile-card">
+          <h2><RiMailLine style={{ marginRight: '8px', verticalAlign: 'middle' }} />Email Notifications</h2>
+          <div className="profile-form">
+            <div className="form-group form-group-toggle">
+              <label htmlFor="email-enabled">Enable Email Notifications</label>
+              <label className="toggle-switch">
+                <input
+                  id="email-enabled"
+                  type="checkbox"
+                  checked={emailNotificationsEnabled}
+                  onChange={(e) => setEmailNotificationsEnabled(e.target.checked)}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+              <span className="input-hint">
+                {emailNotificationsEnabled
+                  ? 'You will receive email alerts when websites go down or come back online.'
+                  : 'All email alerts are currently disabled.'}
+              </span>
+            </div>
+
+            {emailMsg.text && (
+              <div className={`form-message ${emailMsg.isError ? 'form-message--error' : 'form-message--success'}`}>
+                {emailMsg.text}
+              </div>
+            )}
+
+            <button className="btn btn-primary" onClick={handleEmailSettingsSave}>
+              Save Email Settings
+            </button>
+          </div>
         </div>
       </div>
     </div>

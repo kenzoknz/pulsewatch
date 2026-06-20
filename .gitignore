@@ -218,7 +218,7 @@ test-results/
 # =====================
 # Project-specific
 # =====================
-
+GEMINI.md
 artifacts/
 .tye/
 BenchmarkDotNet.Artifacts/
@@ -311,3 +311,4 @@ temp
 
 # Keep package build folder
 !**/[Pp]ackages/build/
+PulseWatch.Api/appsettings.Development.json

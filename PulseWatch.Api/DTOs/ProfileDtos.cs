@@ -31,4 +31,11 @@ public class ProfileResponseDto
     public string Email { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public int TotalWebsites { get; set; }
+    public bool EmailNotificationsEnabled { get; set; }
 }
+
+public class UpdateEmailSettingsDto
+{
+    public bool EmailNotificationsEnabled { get; set; } = true;
+}
+
