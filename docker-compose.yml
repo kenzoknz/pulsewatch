@@ -1,0 +1,74 @@
+version: "3.9"
+
+services:
+  # ── Microsoft SQL Server ──────────────────────────────────────────────────
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: pulsewatch-db
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "${DB_SA_PASSWORD:-PulseWatch_DB_P@ss2024!}"
+      MSSQL_PID: "Express"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "${DB_SA_PASSWORD:-PulseWatch_DB_P@ss2024!}" -Q "SELECT 1" -No
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── ASP.NET Core API ─────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./PulseWatch.Api
+      dockerfile: Dockerfile
+    container_name: pulsewatch-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: >
+        Server=db,1433;Database=PulseWatchDb;
+        User Id=SA;Password=${DB_SA_PASSWORD:-PulseWatch_DB_P@ss2024!};
+        TrustServerCertificate=True;
+      Jwt__Key: "${JWT_KEY:-PulseWatch_Super_Secret_Key_Change_This_In_Production_Min_32_Characters!}"
+      Jwt__Issuer: "PulseWatch"
+      Jwt__Audience: "PulseWatch.Client"
+      Jwt__ExpiresInMinutes: "60"
+      UptimeMonitoring__SchedulerDelaySeconds: "60"
+      UptimeMonitoring__HttpTimeoutSeconds: "10"
+      UptimeMonitoring__RetentionDays: "90"
+      # SMTP (optional – leave blank to run in mock/log mode)
+      Smtp__Server: "${SMTP_SERVER:-}"
+      Smtp__Port: "${SMTP_PORT:-587}"
+      Smtp__Username: "${SMTP_USERNAME:-}"
+      Smtp__Password: "${SMTP_PASSWORD:-}"
+      Smtp__FromAddress: "${SMTP_FROM:-alerts@pulsewatch.com}"
+    ports:
+      - "5175:8080"
+
+  # ── React / Nginx Frontend ────────────────────────────────────────────────
+  client:
+    build:
+      context: ./PulseWatch.Client
+      dockerfile: Dockerfile
+      args:
+        # At build time Vite bakes this URL into the bundle.
+        # In production behind Nginx the browser talks to the same origin,
+        # so we use a relative path prefix instead of an absolute host.
+        VITE_API_BASE_URL: /api
+    container_name: pulsewatch-client
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+
+volumes:
+  sqldata:
