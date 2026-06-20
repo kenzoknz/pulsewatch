@@ -35,6 +35,7 @@ public class UptimeBackgroundService : BackgroundService
         {
             var loopStartedAt = DateTime.UtcNow;
             var checkedCount = 0;
+            var realRequestCount = 0; // Actual HTTP requests fired (after URL deduplication)
             var onlineCount = 0;
             var offlineCount = 0;
             var totalResponseTimeMs = 0L;
@@ -51,11 +52,38 @@ public class UptimeBackgroundService : BackgroundService
 
             if (websitesToCheck.Any())
             {
-                foreach (var website in websitesToCheck)
+                // Group websites by their normalized URL to avoid firing duplicate HTTP requests
+                // for the same target (e.g. "Google.com" and "google.com" are treated as one).
+                var groupedByUrl = websitesToCheck.GroupBy(w => NormalizeUrl(w.Url));
+
+                foreach (var group in groupedByUrl)
                 {
+                    var websitesInGroup = group.ToList();
+                    var representative = websitesInGroup[0];
+
+                    UptimeCheck? sharedResult;
+
                     try
                     {
-                        var check = await checker.CheckWebsiteAsync(website);
+                        sharedResult = await checker.CheckWebsiteAsync(representative);
+                        realRequestCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error checking shared URL {Url}", group.Key);
+
+                        // Defer all websites in this group to the next cycle on failure.
+                        foreach (var site in websitesInGroup)
+                            site.NextCheckAt = DateTime.UtcNow.AddSeconds(site.CheckIntervalSeconds);
+
+                        continue;
+                    }
+
+                    foreach (var website in websitesInGroup)
+                    {
+                        // Clone the shared result into a separate UptimeCheck entity for each
+                        // website so that EF Core inserts N distinct rows (one per website).
+                        var check = CloneCheckFor(sharedResult, website.Id);
 
                         var wasOnline = website.IsOnline;
 
@@ -120,12 +148,6 @@ public class UptimeBackgroundService : BackgroundService
                             website.NextCheckAt.ToString("HH:mm:ss")
                         );
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error checking website {WebsiteId} ({Url})", website.Id, website.Url);
-
-                        website.NextCheckAt = DateTime.UtcNow.AddSeconds(website.CheckIntervalSeconds);
-                    }
                 }
 
                 await context.SaveChangesAsync(stoppingToken);
@@ -167,13 +189,42 @@ public class UptimeBackgroundService : BackgroundService
                 var failureRate = (double)offlineCount / checkedCount;
 
                 _logger.LogInformation(
-                    "[UptimeMetrics] Checked={CheckedCount}, Online={OnlineCount}, Offline={OfflineCount}, AverageResponseTimeMs={AverageResponseTimeMs}, FailureRate={FailureRate:P2}, LoopElapsedMs={LoopElapsedMs}",
-                    checkedCount, onlineCount, offlineCount,
+                    "[UptimeMetrics] Checked={CheckedCount}, RealRequests={RealRequests}, Online={OnlineCount}, Offline={OfflineCount}, AverageResponseTimeMs={AverageResponseTimeMs}, FailureRate={FailureRate:P2}, LoopElapsedMs={LoopElapsedMs}",
+                    checkedCount, realRequestCount, onlineCount, offlineCount,
                     averageResponseTimeMs, failureRate, elapsedMs
                 );
             }
 
             await Task.Delay(TimeSpan.FromSeconds(_options.SchedulerDelaySeconds), stoppingToken);
         }
+    }
+
+
+    private static UptimeCheck CloneCheckFor(UptimeCheck source, int websiteId) => new()
+    {
+        WebsiteId = websiteId,
+        IsOnline = source.IsOnline,
+        StatusCode = source.StatusCode,
+        ResponseTimeMs = source.ResponseTimeMs,
+        ErrorMessage = source.ErrorMessage,
+        CheckedAt = source.CheckedAt
+    };
+
+    private static string NormalizeUrl(string url)
+    {
+        if (Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri))
+        {
+            // Reconstruct with lowercased scheme+host; preserve everything else.
+            var normalized = uri.GetLeftPart(UriPartial.Scheme).ToLowerInvariant()
+                + uri.Host.ToLowerInvariant()
+                + (uri.IsDefaultPort ? string.Empty : $":{uri.Port}")
+                + (uri.AbsolutePath == "/" ? string.Empty : uri.AbsolutePath)
+                + uri.Query
+                + uri.Fragment;
+            return normalized;
+        }
+
+        // Fallback: lowercase the whole string if it cannot be parsed as a URI.
+        return (url ?? string.Empty).Trim().ToLowerInvariant();
     }
 }
