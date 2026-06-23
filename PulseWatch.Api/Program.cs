@@ -56,9 +56,15 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.SignIn.RequireConfirmedEmail = false;
 })
 .AddEntityFrameworkStores<AppDbContext>()
-.AddRoles<IdentityRole>(); // Đăng ký RoleManager<IdentityRole> vào DI container
-var jwtSettings = builder.Configuration.GetSection("Jwt");
-var secretKey = jwtSettings["Key"]!;
+.AddRoles<IdentityRole>(); 
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
+    ?? throw new InvalidOperationException("JWT configuration is missing.");
+
+if (string.IsNullOrWhiteSpace(jwtOptions.Key))
+    throw new InvalidOperationException("JWT signing key is missing. Set Jwt__Key in the environment.");
+
+if (string.IsNullOrWhiteSpace(jwtOptions.Issuer) || string.IsNullOrWhiteSpace(jwtOptions.Audience))
+    throw new InvalidOperationException("JWT issuer and audience must be configured.");
 
 builder.Services.AddAuthentication(options =>
 {
@@ -70,13 +76,13 @@ builder.Services.AddAuthentication(options =>
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
-        ValidIssuer = jwtSettings["Issuer"],
+        ValidIssuer = jwtOptions.Issuer,
 
         ValidateAudience = true,
-        ValidAudience = jwtSettings["Audience"],
+        ValidAudience = jwtOptions.Audience,
 
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
 
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero

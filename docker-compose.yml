@@ -8,14 +8,14 @@ services:
     restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
-      SA_PASSWORD: "${DB_SA_PASSWORD:-PulseWatch_DB_P@ss2024!}"
+      SA_PASSWORD: "${DB_SA_PASSWORD:?DB_SA_PASSWORD is required}"
       MSSQL_PID: "Express"
     ports:
       - "1433:1433"
     volumes:
       - sqldata:/var/opt/mssql
     healthcheck:
-      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "${DB_SA_PASSWORD:-PulseWatch_DB_P@ss2024!}" -Q "SELECT 1" -No
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "${DB_SA_PASSWORD:?DB_SA_PASSWORD is required}" -Q "SELECT 1" -No
       interval: 10s
       timeout: 5s
       retries: 10
@@ -35,9 +35,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: >
         Server=db,1433;Database=PulseWatchDb;
-        User Id=SA;Password=${DB_SA_PASSWORD:-PulseWatch_DB_P@ss2024!};
+        User Id=SA;Password=${DB_SA_PASSWORD:?DB_SA_PASSWORD is required};
         TrustServerCertificate=True;
-      Jwt__Key: "${JWT_KEY:-PulseWatch_Super_Secret_Key_Change_This_In_Production_Min_32_Characters!}"
+      Jwt__Key: "${JWT_KEY:?JWT_KEY is required}"
       Jwt__Issuer: "PulseWatch"
       Jwt__Audience: "PulseWatch.Client"
       Jwt__ExpiresInMinutes: "60"
