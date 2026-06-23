@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authApi } from '../api/pulsewatchApi';
+import { getCookie, setCookie, removeCookie } from '../utils/cookies';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
-    const [token, setToken] = useState(() => localStorage.getItem('accessToken'));
+    const [token, setToken] = useState(() => getCookie('accessToken'));
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -20,8 +21,8 @@ export function AuthProvider({ children }) {
                 setUser(response.data);
             } catch (error) {
                 console.error('Token verification failed:', error);
-                localStorage.removeItem('accessToken');
-                localStorage.removeItem('tokenExpiresAt');
+                removeCookie('accessToken');
+                removeCookie('tokenExpiresAt');
                 setToken(null);
                 setUser(null);
             } finally {
@@ -47,8 +48,8 @@ export function AuthProvider({ children }) {
         const response = await authApi.login({ emailOrUsername, password });
         const data = response.data;
 
-        localStorage.setItem('accessToken', data.accessToken);
-        localStorage.setItem('tokenExpiresAt', new Date(data.expiresAt).toISOString());
+        setCookie('accessToken', data.accessToken, data.expiresAt);
+        setCookie('tokenExpiresAt', new Date(data.expiresAt).toISOString(), data.expiresAt);
 
         setToken(data.accessToken);
         setUser(data.user);
@@ -65,8 +66,8 @@ export function AuthProvider({ children }) {
         });
         const data = response.data;
 
-        localStorage.setItem('accessToken', data.accessToken);
-        localStorage.setItem('tokenExpiresAt', new Date(data.expiresAt).toISOString());
+        setCookie('accessToken', data.accessToken, data.expiresAt);
+        setCookie('tokenExpiresAt', new Date(data.expiresAt).toISOString(), data.expiresAt);
 
         setToken(data.accessToken);
         setUser(data.user);
@@ -75,8 +76,8 @@ export function AuthProvider({ children }) {
     }, []);
 
     const logout = useCallback(() => {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('tokenExpiresAt');
+        removeCookie('accessToken');
+        removeCookie('tokenExpiresAt');
         setToken(null);
         setUser(null);
     }, []);
