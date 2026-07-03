@@ -102,10 +102,14 @@ public class WebsitesController : ControllerBase
             CheckIntervalSeconds = dto.CheckIntervalSeconds,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
-
             NextCheckAt = DateTime.UtcNow,
             LastCheckedAt = null,
-            IsOnline = null
+            IsOnline = null,
+            // Public status page & advanced check options
+            IsPublic = dto.IsPublic,
+            HttpMethod = dto.HttpMethod ?? "GET",
+            CustomHeadersJson = dto.CustomHeadersJson,
+            ResponseBodyKeyword = dto.ResponseBodyKeyword
         };
 
 
@@ -233,6 +237,11 @@ public class WebsitesController : ControllerBase
         website.Name = dto.Name;
         website.Url = dto.Url;
         website.IsActive = dto.IsActive;
+        // Public status page & advanced check options
+        website.IsPublic = dto.IsPublic;
+        website.HttpMethod = dto.HttpMethod ?? "GET";
+        website.CustomHeadersJson = dto.CustomHeadersJson;
+        website.ResponseBodyKeyword = dto.ResponseBodyKeyword;
 
         if (website.CheckIntervalSeconds != dto.CheckIntervalSeconds)
         {
@@ -585,7 +594,12 @@ public class WebsitesController : ControllerBase
             LastCheckedAt = website.LastCheckedAt,
             NextCheckAt = website.NextCheckAt,
             OwnerEmail = website.User?.Email ?? string.Empty,
-            OwnerUsername = website.User?.UserName ?? string.Empty
+            OwnerUsername = website.User?.UserName ?? string.Empty,
+            // Public status page & advanced check options
+            IsPublic = website.IsPublic,
+            HttpMethod = website.HttpMethod,
+            CustomHeadersJson = website.CustomHeadersJson,
+            ResponseBodyKeyword = website.ResponseBodyKeyword
         };
     }
     

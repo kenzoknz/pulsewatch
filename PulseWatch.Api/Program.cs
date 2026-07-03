@@ -120,6 +120,7 @@ builder.Services.AddHostedService<UptimeBackgroundService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddSignalR();
+builder.Services.AddResponseCaching();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactClient", policy =>
@@ -151,6 +152,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowReactClient");
+app.UseResponseCaching();
 app.UseHttpsRedirection();
 app.UseAuthentication(); // 1. Đọc & decode JWT → xác định user là ai (gán vào HttpContext.User)
 app.UseAuthorization();  // 2. Kiểm tra [Authorize] attribute → trả 401/403 nếu không hợp lệ

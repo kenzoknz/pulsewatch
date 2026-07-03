@@ -1,0 +1,329 @@
+/* ────────────────────────────────────────
+   PublicStatusPage.css – PulseWatch
+   ──────────────────────────────────────── */
+
+.psp-shell {
+  min-height: 100vh;
+  background: #0a0e1a;
+  color: #d1d5db;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── NAV ── */
+.psp-nav {
+  background: rgba(10, 14, 26, 0.9);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 0 24px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.psp-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 16px;
+}
+.psp-nav-label { font-size: 12px; color: #6b7280; }
+
+/* ── CONTENT ── */
+.psp-content {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  flex: 1;
+  width: 100%;
+}
+
+/* ── HEADER ── */
+.psp-header {
+  margin-bottom: 40px;
+}
+.psp-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.psp-site-name {
+  font-size: clamp(24px, 4vw, 36px);
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.5px;
+  margin-bottom: 6px;
+}
+.psp-site-url {
+  color: #6b7280;
+  font-size: 14px;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.psp-site-url:hover { color: #06b6d4; }
+.psp-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+.psp-status-badge.online { background: rgba(16,185,129,0.15); color: #10b981; }
+.psp-status-badge.offline { background: rgba(239,68,68,0.15); color: #ef4444; }
+.psp-status-badge.unknown { background: rgba(107,114,128,0.15); color: #9ca3af; }
+.psp-status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: psp-pulse 2s infinite;
+}
+.psp-status-badge.offline .psp-status-dot { animation: none; }
+@keyframes psp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.psp-last-check { font-size: 13px; color: #6b7280; }
+
+/* ── STATS GRID ── */
+.psp-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.psp-stat-card {
+  background: #111827;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+}
+.psp-stat-value { font-size: 28px; font-weight: 800; color: #fff; }
+.psp-stat-label { font-size: 12px; color: #6b7280; margin-top: 6px; }
+
+/* ── RING ROW ── */
+.psp-ring-row {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+  background: #111827;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 32px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+.psp-ring-container { flex-shrink: 0; }
+.psp-ring {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.psp-ring-inner {
+  width: 104px;
+  height: 104px;
+  background: #111827;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.psp-ring-value { font-size: 24px; font-weight: 800; color: #fff; }
+.psp-ring-sub { font-size: 11px; color: #6b7280; }
+
+/* ── CHART ── */
+.psp-chart { flex: 1; min-width: 200px; }
+.psp-chart-label { font-size: 12px; color: #6b7280; margin-bottom: 12px; }
+.psp-bars {
+  display: flex;
+  gap: 3px;
+  height: 60px;
+  align-items: flex-end;
+}
+.psp-bar {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  min-height: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.psp-bar.up { height: var(--height, 60%); background: #10b981; opacity: 0.7; }
+.psp-bar.up:hover { opacity: 1; }
+.psp-bar.down { height: 12px; background: #ef4444; opacity: 0.8; }
+.psp-bar.down:hover { opacity: 1; }
+.psp-no-data { color: #6b7280; font-size: 13px; }
+.psp-bars-legend { display: flex; gap: 16px; margin-top: 10px; }
+.psp-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6b7280; }
+.psp-legend-dot {
+  width: 8px; height: 8px;
+  border-radius: 2px;
+}
+.psp-legend-dot.up { background: #10b981; }
+.psp-legend-dot.down { background: #ef4444; }
+
+/* ── SECTIONS ── */
+.psp-section { margin-bottom: 40px; }
+.psp-section-title { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 16px; }
+
+/* ── NO INCIDENTS ── */
+.psp-no-incidents {
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.2);
+  border-radius: 12px;
+  padding: 20px 24px;
+  color: #10b981;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── INCIDENTS ── */
+.psp-incidents { display: flex; flex-direction: column; gap: 0; }
+.psp-incident {
+  display: flex;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.psp-incident:last-child { border-bottom: none; }
+.psp-incident-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.psp-incident-body { flex: 1; }
+.psp-incident-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+.psp-incident-time { font-size: 14px; font-weight: 600; color: #e5e7eb; }
+.psp-incident-duration {
+  font-size: 12px;
+  background: rgba(239,68,68,0.15);
+  color: #ef4444;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.psp-incident-ongoing {
+  font-size: 12px;
+  background: rgba(245,158,11,0.15);
+  color: #f59e0b;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.psp-incident-reason { font-size: 13px; color: #9ca3af; margin-bottom: 4px; }
+.psp-incident-resolved { font-size: 12px; color: #6b7280; }
+
+/* ── EMBED ── */
+.psp-embed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+.psp-embed-card {
+  background: #111827;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.psp-embed-label { font-size: 12px; color: #6b7280; font-weight: 500; }
+.psp-embed-code {
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 11px;
+  color: #06b6d4;
+  background: rgba(6,182,212,0.05);
+  border: 1px solid rgba(6,182,212,0.1);
+  border-radius: 6px;
+  padding: 10px 12px;
+  word-break: break-all;
+  line-height: 1.6;
+  flex: 1;
+}
+.psp-copy-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: #d1d5db;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+  align-self: flex-start;
+}
+.psp-copy-btn:hover { background: rgba(255,255,255,0.1); }
+.psp-badge-preview-card { align-items: flex-start; }
+.psp-badge-img { height: 24px; }
+
+/* ── LOADING / ERROR ── */
+.psp-loading, .psp-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 80px 24px;
+  text-align: center;
+}
+.psp-spinner {
+  width: 36px; height: 36px;
+  border: 3px solid rgba(255,255,255,0.1);
+  border-top-color: #06b6d4;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.psp-error-icon { font-size: 48px; }
+.psp-error h2 { font-size: 22px; font-weight: 700; color: #fff; }
+.psp-error p { color: #9ca3af; max-width: 400px; }
+.psp-btn {
+  background: linear-gradient(135deg, #06b6d4, #0ea5e9);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: opacity 0.2s;
+}
+.psp-btn:hover { opacity: 0.9; }
+
+/* ── FOOTER ── */
+.psp-footer {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 24px;
+  text-align: center;
+}
+.psp-footer-brand {
+  color: #6b7280;
+  text-decoration: none;
+  font-size: 13px;
+  transition: color 0.2s;
+}
+.psp-footer-brand:hover { color: #fff; }
+.psp-footer-brand strong { color: #06b6d4; }
