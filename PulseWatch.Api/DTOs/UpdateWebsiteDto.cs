@@ -15,4 +15,17 @@ public class UpdateWebsiteDto
     public int CheckIntervalSeconds { get; set; } = 300;
 
     public bool IsActive { get; set; } = true;
-}
+
+    // --- Public Status Page ---
+    public bool IsPublic { get; set; } = false;
+
+    // --- Advanced Check Options ---
+    [RegularExpression("^(GET|HEAD|POST)$", ErrorMessage = "HttpMethod must be GET, HEAD, or POST.")]
+    public string HttpMethod { get; set; } = "GET";
+
+    [StringLength(2048, ErrorMessage = "CustomHeadersJson must be 2048 characters or less.")]
+    public string? CustomHeadersJson { get; set; }
+
+    [StringLength(500, ErrorMessage = "ResponseBodyKeyword must be 500 characters or less.")]
+    public string? ResponseBodyKeyword { get; set; }
+}

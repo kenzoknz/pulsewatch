@@ -7,6 +7,7 @@ import {
   markAllNotificationsAsRead,
   clearAllNotifications,
 } from '../api/pulsewatchApi';
+import { getCookie } from '../utils/cookies';
 
 const POLL_INTERVAL = 60000;
 const HUB_URL = import.meta.env.VITE_API_BASE_URL
@@ -75,11 +76,11 @@ export default function useNotifications() {
 
   // SignalR connection
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
+    const token = getCookie('accessToken');
     if (!token) return;
 
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(HUB_URL, { accessTokenFactory: () => localStorage.getItem('accessToken') })
+      .withUrl(HUB_URL, { accessTokenFactory: () => getCookie('accessToken') })
       .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
       .configureLogging(signalR.LogLevel.Warning)
       .build();

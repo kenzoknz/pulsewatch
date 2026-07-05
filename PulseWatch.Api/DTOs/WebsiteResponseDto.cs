@@ -22,4 +22,12 @@ public class WebsiteResponseDto
     
     public string OwnerEmail { get; set; } = string.Empty;
     public string OwnerUsername { get; set; } = string.Empty;
-}
+
+    // --- Public Status Page ---
+    public bool IsPublic { get; set; }
+
+    // --- Advanced Check Options ---
+    public string HttpMethod { get; set; } = "GET";
+    public string? CustomHeadersJson { get; set; }
+    public string? ResponseBodyKeyword { get; set; }
+}

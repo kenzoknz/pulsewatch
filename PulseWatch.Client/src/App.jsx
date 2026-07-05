@@ -15,6 +15,8 @@ import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import UserManagementPage from './pages/UserManagementPage';
 import AdminRoute from './components/AdminRoute';
+import LandingPage from './pages/LandingPage';
+import PublicStatusPage from './pages/PublicStatusPage';
 
 function WebsiteDetailRoute({ refreshKey, onBack }) {
   const { websiteId } = useParams();
@@ -57,21 +59,47 @@ export default function App() {
 
   return (
     <Routes>
+      {/* Public Landing Page — visible to everyone */}
+      <Route path="/" element={<LandingPage />} />
+
+      {/* Public Status Page — unauthenticated, read-only */}
+      <Route path="/status/:websiteId" element={<PublicStatusPage />} />
+
       {/* Public Auth Routes */}
       <Route
         path="/login"
         element={
-          isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
+          isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
         }
       />
       <Route
         path="/register"
         element={
-          isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />
+          isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />
         }
       />
 
       {/* Protected Routes utilizing MainLayout */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <MainLayout triggerRefresh={triggerRefresh} />
+          </ProtectedRoute>
+        }
+      >
+        <Route
+          index
+          element={
+            <DashboardPage
+              key={refreshKey}
+              onViewWebsites={() => navigate('/websites')}
+            />
+          }
+        />
+      </Route>
+
+      {/* Protected routes with MainLayout — websites, profile, admin */}
       <Route
         path="/"
         element={
@@ -80,16 +108,6 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route
-          path="dashboard"
-          element={
-            <DashboardPage
-              key={refreshKey}
-              onViewWebsites={() => navigate('/websites')}
-            />
-          }
-        />
         <Route
           path="websites"
           element={

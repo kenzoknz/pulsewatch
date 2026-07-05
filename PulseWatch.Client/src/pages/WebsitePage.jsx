@@ -412,15 +412,19 @@ export default function WebsitePage({ onViewDetail, onRefresh }) {
         </div>
       )}
 
-      {/* Show form if needed */}
+      {/* Show form if needed as a popup modal */}
       {showForm && (
-        <div style={{ marginBottom: '20px' }}>
-          <WebsiteForm
-            initialData={editingWebsite}
-            onSubmit={handleFormSubmit}
-            onCancel={handleFormCancel}
-            isSubmitting={isSubmitting}
-          />
+        <div className="modal-overlay" onClick={handleFormCancel}>
+          <div className="modal-container" onClick={e => e.stopPropagation()}>
+            <div className="modal-content">
+              <WebsiteForm
+                initialData={editingWebsite}
+                onSubmit={handleFormSubmit}
+                onCancel={handleFormCancel}
+                isSubmitting={isSubmitting}
+              />
+            </div>
+          </div>
         </div>
       )}
 

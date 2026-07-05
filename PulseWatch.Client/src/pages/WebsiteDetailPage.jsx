@@ -7,12 +7,15 @@ import {
   updateWebsite,
   runDeepCheck,
 } from '../api/pulsewatchApi';
+import { getPublicBadgeUrl } from '../api/publicApi';
 import CheckHistoryTable from '../components/CheckHistoryTable';
 import {
   RiAlertLine,
   RiCloseCircleLine,
   RiCheckboxCircleLine,
   RiArrowLeftLine,
+  RiLink,
+  RiGlobalLine,
 } from 'react-icons/ri';
 
 const formatDate = (dateString) => {
@@ -47,6 +50,8 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
   const [deepCheckLoading, setDeepCheckLoading] = useState(false);
   const [deepCheckResult, setDeepCheckResult] = useState(null);
   const [deepCheckError, setDeepCheckError] = useState(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(null);
 
   useEffect(() => {
     fetchAllData();
@@ -127,6 +132,13 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
     }
   };
 
+  const handleCopy = (text, key) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  };
+
   if (loading) {
     return (
       <div className="loading-state">
@@ -193,8 +205,65 @@ export default function WebsiteDetailPage({ websiteId, onBack }) {
           >
             {website.isActive ? 'Active' : 'Inactive'}
           </button>
+          {website.isPublic && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShareOpen(o => !o)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <RiLink size={16} /> {shareOpen ? 'Hide Share' : 'Share'}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Share / Embed Panel */}
+      {website.isPublic && shareOpen && (() => {
+        const badgeUrl = getPublicBadgeUrl(website.id);
+        const statusPageUrl = `${window.location.origin}/status/${website.id}`;
+        const markdownBadge = `![Uptime Status](${badgeUrl})`;
+        const htmlBadge = `<img src="${badgeUrl}" alt="Uptime Status" />`;
+        return (
+          <div style={{
+            background: 'var(--surface-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            padding: '20px 24px',
+            marginBottom: '20px',
+          }}>
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 16px', color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600 }}>
+              <RiGlobalLine size={16} /> Share &amp; Embed
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+              {[
+                { label: 'Public Status Page', text: statusPageUrl, key: 'url' },
+                { label: 'Badge (Markdown)', text: markdownBadge, key: 'md' },
+                { label: 'Badge (HTML)', text: htmlBadge, key: 'html' },
+              ].map(({ label, text, key }) => (
+                <div key={key} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 14px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 500 }}>{label}</div>
+                  <code style={{ fontSize: '11px', color: 'var(--primary)', wordBreak: 'break-all', lineHeight: 1.6, display: 'block', marginBottom: '8px' }}>{text}</code>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleCopy(text, key)}
+                    style={{ fontSize: '11px', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    {copied === key ? (
+                      <>
+                        <RiCheckboxCircleLine size={12} style={{ color: 'var(--success)' }} /> Copied!
+                      </>
+                    ) : 'Copy'}
+                  </button>
+                </div>
+              ))}
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 14px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 500 }}>Badge Preview</div>
+                <img src={badgeUrl} alt="Uptime badge" style={{ height: '22px' }} />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Status Badge */}
       <div style={{ marginBottom: '20px' }}>
