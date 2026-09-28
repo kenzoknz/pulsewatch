@@ -18,13 +18,20 @@ public class WebsitesController : ControllerBase
     private readonly UptimeCheckerService _checker;
     private readonly ILogger<WebsitesController> _logger;
     private readonly IDeepCheckService _deepCheck;
+    private readonly IMonitoringUrlPolicy _urlPolicy;
 
-    public WebsitesController(AppDbContext db, UptimeCheckerService checker, ILogger<WebsitesController> logger, IDeepCheckService deepCheck)
+    public WebsitesController(
+        AppDbContext db,
+        UptimeCheckerService checker,
+        ILogger<WebsitesController> logger,
+        IDeepCheckService deepCheck,
+        IMonitoringUrlPolicy urlPolicy)
     {
         _db = db;
         _checker = checker;
         _logger = logger;
         _deepCheck = deepCheck;
+        _urlPolicy = urlPolicy;
     }
 
     // GET /api/websites (paged)
@@ -92,13 +99,21 @@ public class WebsitesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<WebsiteResponseDto>> CreateWebsite([FromBody] CreateWebsiteDto dto)
     {
+        var urlValidation = await _urlPolicy.ValidateAsync(dto.Url, HttpContext.RequestAborted);
+        if (!urlValidation.IsValid)
+            return BadRequest(new { code = urlValidation.Code, message = urlValidation.Message });
+
+        var headersValidation = _urlPolicy.ValidateCustomHeaders(dto.CustomHeadersJson);
+        if (!headersValidation.IsValid)
+            return BadRequest(new { code = headersValidation.Code, message = headersValidation.Message });
+
         var userId = GetCurrentUserId(); 
 
         var website = new Website
         {
             UserId = userId,
             Name = dto.Name,
-            Url = dto.Url,
+            Url = urlValidation.Uri!.ToString(),
             CheckIntervalSeconds = dto.CheckIntervalSeconds,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
@@ -234,8 +249,16 @@ public class WebsitesController : ControllerBase
 
         if (website == null) return NotFound();
 
+        var urlValidation = await _urlPolicy.ValidateAsync(dto.Url, HttpContext.RequestAborted);
+        if (!urlValidation.IsValid)
+            return BadRequest(new { code = urlValidation.Code, message = urlValidation.Message });
+
+        var headersValidation = _urlPolicy.ValidateCustomHeaders(dto.CustomHeadersJson);
+        if (!headersValidation.IsValid)
+            return BadRequest(new { code = headersValidation.Code, message = headersValidation.Message });
+
         website.Name = dto.Name;
-        website.Url = dto.Url;
+        website.Url = urlValidation.Uri!.ToString();
         website.IsActive = dto.IsActive;
         // Public status page & advanced check options
         website.IsPublic = dto.IsPublic;
@@ -332,13 +355,21 @@ public class WebsitesController : ControllerBase
 
             try
             {
+                var urlValidation = await _urlPolicy.ValidateAsync(url, HttpContext.RequestAborted);
+                if (!urlValidation.IsValid)
+                {
+                    skipped.Add(new BulkWebsiteErrorDto { Url = url, Reason = urlValidation.Message });
+                    summary.Skipped++;
+                    continue;
+                }
+
                 var website = new Website
                 {
                     UserId = userId,
                     Name = dto.NameStrategy == "auto"
-                        ? new Uri(url.Trim()).Host
-                        : url.Trim(),
-                    Url = url.Trim(),
+                        ? urlValidation.Uri!.Host
+                        : urlValidation.Uri!.ToString(),
+                    Url = urlValidation.Uri.ToString(),
                     CheckIntervalSeconds = dto.DefaultCheckIntervalSeconds,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow,
@@ -518,6 +549,10 @@ public class WebsitesController : ControllerBase
 
         if (website == null)
             return NotFound();
+
+        var urlValidation = await _urlPolicy.ValidateAsync(website.Url, cancellationToken);
+        if (!urlValidation.IsValid)
+            return BadRequest(new { code = urlValidation.Code, message = urlValidation.Message });
 
         const int cooldownMinutes = 2;
         if (website.LastDeepCheckAt.HasValue)

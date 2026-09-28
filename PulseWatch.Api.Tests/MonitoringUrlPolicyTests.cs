@@ -1,4 +1,8 @@
+using System.Net;
+using System.Net.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using PulseWatch.Api.Models;
 using PulseWatch.Api.Services;
 using Xunit;
 
@@ -88,5 +92,85 @@ public class MonitoringUrlPolicyTests
 
         Assert.False(result.IsValid);
         Assert.Equal("invalid_custom_headers", result.Code);
+    }
+
+    [Fact]
+    public async Task Checker_FollowsSafeRedirectsManually()
+    {
+        var handler = new SequenceHandler(
+            new HttpResponseMessage(HttpStatusCode.Found)
+            {
+                Headers = { Location = new Uri("https://example.com/health") }
+            },
+            new HttpResponseMessage(HttpStatusCode.OK));
+        var checker = CreateChecker(handler);
+
+        var result = await checker.CheckWebsiteAsync(new Website
+        {
+            Id = 1,
+            Url = "http://127.0.0.1/health",
+            HttpMethod = "GET"
+        });
+
+        Assert.True(result.IsOnline);
+        Assert.Equal(2, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task Checker_RejectsUnsupportedRedirectWithoutRetrying()
+    {
+        var handler = new SequenceHandler(
+            new HttpResponseMessage(HttpStatusCode.Found)
+            {
+                Headers = { Location = new Uri("file:///etc/passwd") }
+            },
+            new HttpResponseMessage(HttpStatusCode.OK));
+        var checker = CreateChecker(handler);
+
+        var result = await checker.CheckWebsiteAsync(new Website
+        {
+            Id = 1,
+            Url = "http://127.0.0.1/health",
+            HttpMethod = "GET"
+        });
+
+        Assert.False(result.IsOnline);
+        Assert.Contains("HTTP and HTTPS", result.ErrorMessage);
+        Assert.Equal(1, handler.RequestCount);
+    }
+
+    private static UptimeCheckerService CreateChecker(HttpMessageHandler handler)
+    {
+        var options = Options.Create(new UptimeMonitoringOptions
+        {
+            MaxRetries = 3,
+            UrlSecurity = new MonitoringUrlOptions { AllowPrivateNetworks = true }
+        });
+        var policy = new MonitoringUrlPolicy(options);
+        return new UptimeCheckerService(
+            new HttpClient(handler),
+            NullLogger<UptimeCheckerService>.Instance,
+            options,
+            policy);
+    }
+
+    private sealed class SequenceHandler : HttpMessageHandler
+    {
+        private readonly Queue<HttpResponseMessage> _responses;
+
+        public SequenceHandler(params HttpResponseMessage[] responses)
+        {
+            _responses = new Queue<HttpResponseMessage>(responses);
+        }
+
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestCount++;
+            return Task.FromResult(_responses.Dequeue());
+        }
     }
 }

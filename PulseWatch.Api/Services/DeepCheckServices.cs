@@ -16,6 +16,12 @@ public class DeepCheckService : IDeepCheckService, IAsyncDisposable
     private IPlaywright? _playwright;
     private IBrowser? _browser;
     private readonly object _lock = new();
+    private readonly IMonitoringUrlPolicy _urlPolicy;
+
+    public DeepCheckService(IMonitoringUrlPolicy urlPolicy)
+    {
+        _urlPolicy = urlPolicy;
+    }
 
     private async Task EnsureBrowserAsync()
     {
@@ -34,6 +40,16 @@ public class DeepCheckService : IDeepCheckService, IAsyncDisposable
 
     public async Task<DeepCheckResponseDto> RunCheckAsync(string url, CancellationToken cancellationToken = default)
     {
+        var urlValidation = await _urlPolicy.ValidateAsync(url, cancellationToken);
+        if (!urlValidation.IsValid)
+        {
+            return new DeepCheckResponseDto
+            {
+                IsOnline = false,
+                ErrorMessage = urlValidation.Message
+            };
+        }
+
         await _semaphore.WaitAsync(cancellationToken);
         var result = new DeepCheckResponseDto();
         var sw = Stopwatch.StartNew();
@@ -54,7 +70,28 @@ public class DeepCheckService : IDeepCheckService, IAsyncDisposable
             {
                 var page = await context.NewPageAsync();
 
-                var response = await page.GotoAsync(url, new PageGotoOptions
+                await page.RouteAsync("**/*", async route =>
+                {
+                    var requestUri = route.Request.Url;
+                    if (requestUri.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+                        requestUri.StartsWith("blob:", StringComparison.OrdinalIgnoreCase) ||
+                        requestUri.StartsWith("about:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await route.ContinueAsync();
+                        return;
+                    }
+
+                    var requestValidation = await _urlPolicy.ValidateAsync(requestUri, cancellationToken);
+                    if (!requestValidation.IsValid)
+                    {
+                        await route.AbortAsync("blockedbyclient");
+                        return;
+                    }
+
+                    await route.ContinueAsync();
+                });
+
+                var response = await page.GotoAsync(urlValidation.Uri!.ToString(), new PageGotoOptions
                 {
                     WaitUntil = WaitUntilState.DOMContentLoaded,
                     Timeout = (float)_timeout.TotalMilliseconds

@@ -115,6 +115,10 @@ builder.Services.AddHttpClient<UptimeCheckerService>((serviceProvider, httpClien
         .Value;
 
     httpClient.Timeout = TimeSpan.FromSeconds(options.HttpTimeoutSeconds);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AllowAutoRedirect = false
 });
 builder.Services.AddHostedService<UptimeBackgroundService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -138,6 +142,7 @@ builder.Services.AddCors(options =>
 builder.Services.Configure<JwtOptions>(
 builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddSingleton<IMonitoringUrlPolicy, MonitoringUrlPolicy>();
 builder.Services.AddSingleton<IDeepCheckService, DeepCheckService>();
 var app = builder.Build();
 
