@@ -1,4 +1,3 @@
-
 # Hướng dẫn đóng góp cho PulseWatch
 
 Cảm ơn bạn đã quan tâm và muốn đóng góp cho PulseWatch. Tài liệu này hướng dẫn
