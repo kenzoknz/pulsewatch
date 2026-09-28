@@ -11,4 +11,6 @@ public class UptimeMonitoringOptions
     public int RetentionDays { get; set; } = 90;
 
     public int MaxRetries { get; set; } = 3;
+
+    public MonitoringUrlOptions UrlSecurity { get; set; } = new();
 }
